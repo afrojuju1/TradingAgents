@@ -17,7 +17,8 @@ Already landed:
   income, cash flow, leverage, liquidity, bank/financial accounting context,
   and asset/liability relationship checks.
 - First-pass durable fact artifacts: `market_facts.json`,
-  `fundamental_facts.json`, `news_sources.json`, `sentiment_facts.json`, and
+  `fundamental_facts.json`, `valuation_facts.json`, `event_facts.json`,
+  `news_sources.json`, `sentiment_facts.json`, `data_tool_events.json`, and
   `claim_checks.json`.
 - First-pass numeric report proof checks for market technicals and
   fundamentals contradictions.
@@ -25,6 +26,12 @@ Already landed:
 - Analyst parallelism, tool-result caching, prefetch support, local Ollama
   run profiles, SEC EdgarTools integration, Gluetun support, report quality
   pattern checks, and checkpoint metadata serialization fixes.
+- Structured-output recovery for local/Ollama models: raw tool-call payloads
+  are normalized and validated through Pydantic schemas before markdown
+  rendering, avoiding free-text retries for small enum/object shape issues.
+- Derived total-liabilities support when SEC statements provide assets and
+  equity but omit a direct liabilities concept, plus tighter prompt wording
+  around unavailable peer benchmarks.
 
 ## Milestone 1: Proofable Reports
 
@@ -338,11 +345,72 @@ Done when:
 - Multi-symbol scans are faster than manual one-off runs and do not overload
   Ollama or SEC/news vendors.
 
-## Milestone 6: Domain Coverage
+## Milestone 6: Finance Data Robustness and Domain Coverage
 
-Goal: make deterministic interpretation fit different company types.
+Goal: make finance facts typed, provenance-aware, and fit for different
+company types.
 
-### Chunk 6.1: Sector Accounting Context Expansion
+### Chunk 6.1: Typed Finance Fact Schemas
+
+Move finance artifacts from plain dictionaries to validated Pydantic models.
+
+Schemas:
+
+- `MarketFacts`
+- `FundamentalFacts`
+- `ValuationFacts`
+- `EventFacts`
+- `DataToolEvent`
+
+Done when:
+
+- Fact payloads are validated before being rendered, saved, or passed to an
+  agent.
+- Schema validation catches missing required source/provenance fields.
+- Report-quality checks consume typed facts instead of defensive dict access.
+
+### Chunk 6.2: Strict Vendor Failure Semantics
+
+Normalize data-vendor failure behavior before fallback routing.
+
+Current issue:
+
+- Some vendors raise typed exceptions, but several yfinance paths return
+  strings such as `Error retrieving...` or `No data found...`. Those strings
+  can be recorded as errors while still flowing downstream as low-quality tool
+  text.
+
+Done when:
+
+- Empty, unavailable, rate-limited, and malformed vendor responses become
+  typed errors.
+- `route_to_vendor` only returns successful, parseable payloads.
+- Fallback metadata records every attempted vendor and the final selected
+  vendor.
+- Reports can warn or fail when only fallback or low-confidence data was
+  available.
+
+### Chunk 6.3: Point-in-Time Labels for Snapshot Data
+
+Make freshness and look-ahead risk explicit for every finance data source.
+
+Scope:
+
+- SEC statement facts are already filing-date/as-of aware.
+- OHLCV is filtered to the trade date.
+- yfinance `info` and `calendar` are current snapshots and should be labeled
+  as such when used for historical trade dates.
+
+Done when:
+
+- Every fact has `observed_at`, `retrieved_at`, `as_of`, and
+  `point_in_time_safe` metadata where applicable.
+- Backtest runs can disable current-snapshot valuation/event data or mark it
+  as lower confidence.
+- Report quality can warn when a historical run used present-day snapshot
+  data.
+
+### Chunk 6.4: Sector Accounting Context Expansion
 
 Extend fundamentals context beyond banks.
 
@@ -362,9 +430,9 @@ Done when:
 - Each context has metric interpretation guardrails.
 - Generic industrial assumptions are not applied to sector-specific statements.
 
-### Chunk 6.2: Valuation Fact Pack
+### Chunk 6.5: Valuation Fact Pack
 
-Add deterministic valuation inputs.
+Expand deterministic valuation inputs.
 
 Inputs:
 
@@ -375,15 +443,19 @@ Inputs:
 - Price/book
 - Dividend yield
 - Buyback yield when available
-- Sector peer medians where available
+- EV/sales, EV/EBITDA, PEG, earnings yield, and free-cash-flow yield when
+  sourceable
+- Sector or peer benchmark valuations when sourceable and clearly labeled
 
 Done when:
 
 - Valuation claims come from a normalized source, not free-text inference.
+- Missing valuation fields produce explicit guardrails instead of vague prose.
+- Peer comparisons cite an explicit peer/sector source and date.
 
-### Chunk 6.3: Event Calendar Pack
+### Chunk 6.6: Event Calendar Pack
 
-Add deterministic upcoming-event context.
+Expand deterministic upcoming-event context.
 
 Events:
 
@@ -392,10 +464,93 @@ Events:
 - Major filing date
 - Investor day
 - Product/regulatory events when sourceable
+- Conference presentations and guidance updates when sourceable
+- Dividend declaration, record, and payment dates when sourceable
 
 Done when:
 
 - Catalyst timing is explicit and source-backed.
+- Event fields are labeled as company calendar, exchange calendar, SEC filing,
+  or external news/event source.
+
+### Chunk 6.7: Dividend, Buyback, and Share-Count Pack
+
+Add deterministic capital-return and dilution context.
+
+Inputs:
+
+- Declared dividend and yield
+- Ex-dividend, record, and payment dates
+- Dividend payout versus earnings and free cash flow
+- Share repurchases
+- Weighted average diluted shares
+- Share count change over time
+- Net buyback yield when sourceable
+
+Done when:
+
+- Reports can distinguish income yield from total capital return.
+- Dilution or buyback claims are grounded in saved facts.
+- Dividend safety claims cite payout and free-cash-flow coverage.
+
+### Chunk 6.8: Debt Service and Maturity Pack
+
+Add deterministic solvency facts beyond total debt.
+
+Inputs:
+
+- Interest expense
+- EBIT or operating income
+- Interest coverage
+- Current debt versus long-term debt
+- Debt maturity schedule when parseable
+- Cash and marketable securities
+- Net debt / EBITDA when sourceable
+
+Done when:
+
+- Debt-risk claims use coverage and maturity facts, not only absolute debt.
+- Rate-sensitivity claims are blocked unless fixed/floating or maturity data
+  is available.
+
+### Chunk 6.9: Expectations and Revision Pack
+
+Add forward-looking estimate context without letting it become unsupported
+forecasting.
+
+Inputs:
+
+- Forward EPS and revenue estimates
+- Estimate high/low/average
+- Recent estimate revisions
+- Earnings surprise history
+- Guidance ranges when sourceable
+
+Done when:
+
+- Earnings setup claims distinguish reported facts from analyst expectations.
+- Estimate numbers cite a source and date.
+- Missing estimate data produces explicit guardrails.
+
+### Chunk 6.10: Market Microstructure and Positioning Pack
+
+Add optional risk/positioning facts for trade setup quality.
+
+Inputs:
+
+- Short interest and days to cover
+- Options implied volatility
+- Put/call ratio or skew when sourceable
+- Major open-interest strikes
+- Average dollar volume and liquidity
+- Institutional and insider activity when sourceable
+
+Done when:
+
+- Crowding, squeeze, liquidity, and options-risk claims are either supported
+  or blocked.
+- These facts remain optional and do not slow the default fast profile unless
+  enabled.
 
 ## Milestone 7: Repo and Report Hygiene
 
@@ -434,21 +589,27 @@ Done when:
 
 ## Suggested Execution Order
 
-1. Durable fact artifacts.
-2. Numeric report proof checks.
-3. News source extraction.
-4. News claim gating.
-5. Debate grounding.
-6. Prepared-data analyst mode.
-7. Prompt/report budgets.
-8. Benchmark harness.
-9. Parallel first-round risk debate.
-10. Checkpoint full-run validation.
-11. Sector accounting context expansion.
-12. Multi-ticker batch runner.
-13. Golden report fixtures and report archive policy.
+1. Typed finance fact schemas.
+2. Strict vendor failure semantics.
+3. Point-in-time labels for snapshot data.
+4. Durable fact artifacts.
+5. Numeric report proof checks.
+6. News source extraction.
+7. News claim gating.
+8. Debate grounding.
+9. Prepared-data analyst mode.
+10. Prompt/report budgets.
+11. Benchmark harness.
+12. Parallel first-round risk debate.
+13. Checkpoint full-run validation.
+14. Valuation/event pack expansion.
+15. Dividend, buyback, share-count, and debt-service packs.
+16. Expectations/revisions and market-positioning packs.
+17. Sector accounting context expansion.
+18. Multi-ticker batch runner.
+19. Golden report fixtures and report archive policy.
 
-The first two chunks should come first because they turn every future run into
-a measurable regression test. After that, news grounding and debate grounding
-attack the remaining quality issues directly, while prepared-data mode and
-prompt budgets attack runtime.
+The first three chunks should come first because they make every future fact
+pack validated, provenance-aware, and honest about fallback or snapshot data.
+After that, report proof checks, news grounding, and debate grounding attack
+quality directly, while prepared-data mode and prompt budgets attack runtime.
