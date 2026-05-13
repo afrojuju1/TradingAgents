@@ -87,6 +87,31 @@ def test_single_analyst_loop_runs_tool_then_report():
     assert tool_node.calls == 1
 
 
+def test_single_analyst_loop_allows_prefetched_market_indicator_batch():
+    calls = {"analyst": 0}
+    tool_node = _ToolNode()
+
+    def analyst_node(state):
+        calls["analyst"] += 1
+        if calls["analyst"] <= 9:
+            return {"messages": [_Message(tool_calls=[{"name": "fetch"}])]}
+        return {
+            "messages": [_Message("done")],
+            "market_report": "market report",
+        }
+
+    result = _run_single_analyst_loop(
+        analyst_type="market",
+        analyst_node=analyst_node,
+        tool_node=tool_node,
+        base_state=_base_state(),
+    )
+
+    assert result == {"market_report": "market report"}
+    assert calls["analyst"] == 10
+    assert tool_node.calls == 9
+
+
 def test_parallel_analysts_node_runs_independent_reports_concurrently():
     barrier = Barrier(2)
 

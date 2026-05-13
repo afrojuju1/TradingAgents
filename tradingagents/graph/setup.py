@@ -40,7 +40,7 @@ def _run_single_analyst_loop(
     analyst_node: Callable[[dict], dict],
     tool_node: ToolNode,
     base_state: dict,
-    max_tool_iterations: int = 8,
+    max_tool_iterations: int = 12,
 ) -> dict:
     """Run one analyst and its tool loop against an isolated message state."""
     start = perf_counter()
@@ -71,6 +71,16 @@ def _run_single_analyst_loop(
             )
             return {report_field: state.get(report_field, "")}
 
+        tool_names = [
+            call.get("name") if isinstance(call, dict) else getattr(call, "name", None)
+            for call in getattr(last_message, "tool_calls", [])
+        ]
+        logger.info(
+            "Analyst tool call: %s iteration=%d tools=%s",
+            analyst_type,
+            len([message for message in state["messages"] if getattr(message, "tool_calls", None)]),
+            ",".join(name for name in tool_names if name) or "unknown",
+        )
         tool_update = tool_node.invoke(state)
         _merge_node_update(state, tool_update)
 
@@ -102,6 +112,7 @@ class GraphSetup:
         conditional_logic: ConditionalLogic,
         parallel_analysts: bool = False,
         parallel_analyst_workers: int = 4,
+        analyst_max_tool_iterations: int = 12,
     ):
         """Initialize with required components."""
         self.quick_thinking_llm = quick_thinking_llm
@@ -110,6 +121,7 @@ class GraphSetup:
         self.conditional_logic = conditional_logic
         self.parallel_analysts = parallel_analysts
         self.parallel_analyst_workers = parallel_analyst_workers
+        self.analyst_max_tool_iterations = max(1, int(analyst_max_tool_iterations))
 
     def setup_graph(
         self, selected_analysts=["market", "social", "news", "fundamentals"]
@@ -368,6 +380,7 @@ class GraphSetup:
                         analyst_node=analyst_nodes[analyst_type],
                         tool_node=tool_nodes[analyst_type],
                         base_state=state,
+                        max_tool_iterations=self.analyst_max_tool_iterations,
                     ): analyst_type
                     for analyst_type in selected_analysts
                 }

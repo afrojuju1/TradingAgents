@@ -129,6 +129,7 @@ class TradingAgentsGraph:
             self.conditional_logic,
             parallel_analysts=self.config.get("parallel_analysts", False),
             parallel_analyst_workers=self.config.get("parallel_analyst_workers", 4),
+            analyst_max_tool_iterations=self.config.get("analyst_max_tool_iterations", 12),
         )
 
         self.propagator = Propagator(

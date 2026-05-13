@@ -39,6 +39,7 @@ def test_no_env_uses_built_in_defaults(monkeypatch):
     assert dc.DEFAULT_CONFIG["checkpoint_enabled"] is False
     assert dc.DEFAULT_CONFIG["parallel_analysts"] is False
     assert dc.DEFAULT_CONFIG["parallel_analyst_workers"] == 4
+    assert dc.DEFAULT_CONFIG["analyst_max_tool_iterations"] == 12
     assert dc.DEFAULT_CONFIG["prefetch_data_enabled"] is False
     assert dc.DEFAULT_CONFIG["prefetch_workers"] == 4
     assert dc.DEFAULT_CONFIG["data_tool_cache_enabled"] is False
@@ -77,6 +78,7 @@ def test_int_coercion(monkeypatch):
         TRADINGAGENTS_MAX_DEBATE_ROUNDS="3",
         TRADINGAGENTS_MAX_RISK_ROUNDS="2",
         TRADINGAGENTS_PARALLEL_ANALYST_WORKERS="2",
+        TRADINGAGENTS_ANALYST_MAX_TOOL_ITERATIONS="10",
         TRADINGAGENTS_DATA_TOOL_CACHE_TTL_SECONDS="60",
         TRADINGAGENTS_SEC_REQUEST_TIMEOUT="45",
         TRADINGAGENTS_PREFETCH_WORKERS="3",
@@ -87,6 +89,8 @@ def test_int_coercion(monkeypatch):
     assert isinstance(dc.DEFAULT_CONFIG["max_risk_discuss_rounds"], int)
     assert dc.DEFAULT_CONFIG["parallel_analyst_workers"] == 2
     assert isinstance(dc.DEFAULT_CONFIG["parallel_analyst_workers"], int)
+    assert dc.DEFAULT_CONFIG["analyst_max_tool_iterations"] == 10
+    assert isinstance(dc.DEFAULT_CONFIG["analyst_max_tool_iterations"], int)
     assert dc.DEFAULT_CONFIG["data_tool_cache_ttl_seconds"] == 60
     assert isinstance(dc.DEFAULT_CONFIG["data_tool_cache_ttl_seconds"], int)
     assert dc.DEFAULT_CONFIG["sec_request_timeout"] == 45

@@ -21,6 +21,7 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_BENCHMARK_TICKER":     "benchmark_ticker",
     "TRADINGAGENTS_PARALLEL_ANALYSTS":    "parallel_analysts",
     "TRADINGAGENTS_PARALLEL_ANALYST_WORKERS": "parallel_analyst_workers",
+    "TRADINGAGENTS_ANALYST_MAX_TOOL_ITERATIONS": "analyst_max_tool_iterations",
     "TRADINGAGENTS_DATA_TOOL_CACHE_ENABLED": "data_tool_cache_enabled",
     "TRADINGAGENTS_DATA_TOOL_CACHE_TTL_SECONDS": "data_tool_cache_ttl_seconds",
     "TRADINGAGENTS_SEC_IDENTITY":       "sec_identity",
@@ -98,6 +99,7 @@ DEFAULT_CONFIG = _apply_env_overrides(apply_run_profile({
     # providers with strict rate limits keep the conservative serial flow.
     "parallel_analysts": False,
     "parallel_analyst_workers": 4,
+    "analyst_max_tool_iterations": 12,
     # Optional deterministic prefetch warms the vendor tool cache before LLM
     # analysts start. This is disabled by default because some workflows prefer
     # truly on-demand network calls, but local Ollama runs can opt in.
