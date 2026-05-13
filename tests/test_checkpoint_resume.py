@@ -6,8 +6,9 @@ import unittest
 from pathlib import Path
 from typing import TypedDict
 
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.sqlite import SqliteSaver
-from langgraph.graph import END, StateGraph
+from langgraph.graph import END, MessagesState, StateGraph
 
 from tradingagents.graph.checkpointer import (
     checkpoint_step,
@@ -42,6 +43,18 @@ def _build_graph() -> StateGraph:
     builder.set_entry_point("analyst")
     builder.add_edge("analyst", "trader")
     builder.add_edge("trader", END)
+    return builder
+
+
+def _message_node(state: MessagesState) -> dict:
+    return {"messages": [AIMessage(content="checkpoint me")]}
+
+
+def _build_message_graph() -> StateGraph:
+    builder = StateGraph(MessagesState)
+    builder.add_node("message_writer", _message_node)
+    builder.set_entry_point("message_writer")
+    builder.add_edge("message_writer", END)
     return builder
 
 
@@ -140,6 +153,63 @@ class TestCheckpointResume(unittest.TestCase):
         self.assertEqual(result["count"], 11)
 
         # Original date checkpoint still exists (untouched)
+        self.assertTrue(has_checkpoint(self.tmpdir, self.ticker, self.date))
+
+    def test_checkpoint_metadata_accepts_aimessage_writes(self):
+        """LangGraph may include node writes with AIMessage objects in metadata."""
+        tid = thread_id(self.ticker, self.date)
+        config = {"configurable": {"thread_id": tid, "checkpoint_ns": ""}}
+        checkpoint = {
+            "v": 3,
+            "ts": "2026-04-20T00:00:00+00:00",
+            "id": "checkpoint-with-message-metadata",
+            "channel_values": {"messages": [AIMessage(content="saved")]},
+            "channel_versions": {},
+            "versions_seen": {},
+            "pending_sends": [],
+            "updated_channels": [],
+        }
+        metadata = {
+            "source": "loop",
+            "step": 1,
+            "writes": {
+                "Trader": {
+                    "messages": [AIMessage(content="metadata write")],
+                }
+            },
+        }
+
+        with get_checkpointer(self.tmpdir, self.ticker) as saver:
+            saver.put(config, checkpoint, metadata, {})
+            loaded = saver.get_tuple(
+                {
+                    "configurable": {
+                        "thread_id": tid,
+                        "checkpoint_ns": "",
+                        "checkpoint_id": checkpoint["id"],
+                    }
+                }
+            )
+
+        self.assertIsNotNone(loaded)
+        self.assertEqual(loaded.metadata["step"], 1)
+        saved_message = loaded.checkpoint["channel_values"]["messages"][0]
+        self.assertIsInstance(saved_message, AIMessage)
+        self.assertEqual(saved_message.content, "saved")
+
+    def test_graph_checkpoint_accepts_message_node_writes(self):
+        """Regression for full graph checkpointing when a node writes AIMessage."""
+        tid = thread_id(self.ticker, self.date)
+        cfg = {"configurable": {"thread_id": tid}}
+
+        with get_checkpointer(self.tmpdir, self.ticker) as saver:
+            graph = _build_message_graph().compile(checkpointer=saver)
+            result = graph.invoke(
+                {"messages": [HumanMessage(content="start")]},
+                config=cfg,
+            )
+
+        self.assertEqual(result["messages"][-1].content, "checkpoint me")
         self.assertTrue(has_checkpoint(self.tmpdir, self.ticker, self.date))
 
 

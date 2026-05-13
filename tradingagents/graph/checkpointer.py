@@ -6,14 +6,58 @@ Per-ticker SQLite databases so concurrent tickers don't contend.
 from __future__ import annotations
 
 import hashlib
+import json
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Generator
+from typing import Any, Generator
 
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 from tradingagents.dataflows.utils import safe_ticker_component
+
+
+def _json_safe_metadata(value: Any) -> Any:
+    """Convert checkpoint metadata to values SQLite's JSON column can store.
+
+    LangGraph stores checkpoint payloads with its own serde, but the SQLite
+    saver persists checkpoint metadata through ``json.dumps``. Recent
+    LangGraph versions include node writes in that metadata, so TradingAgents
+    nodes that write ``AIMessage`` objects can otherwise fail after the graph
+    has already completed useful work.
+    """
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {
+            str(_json_safe_metadata(k)): _json_safe_metadata(v)
+            for k, v in value.items()
+        }
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe_metadata(v) for v in value]
+    if isinstance(value, Path):
+        return str(value)
+    if hasattr(value, "model_dump"):
+        try:
+            return _json_safe_metadata(value.model_dump(mode="json"))
+        except Exception:
+            pass
+    return repr(value)
+
+
+class TradingAgentsSqliteSaver(SqliteSaver):
+    """SQLite saver that makes LangGraph metadata JSON-safe.
+
+    The checkpoint itself is still serialized by LangGraph. Only metadata is
+    sanitized because ``langgraph-checkpoint-sqlite`` stores metadata as JSON.
+    """
+
+    def put(self, config, checkpoint, metadata, new_versions):
+        safe_metadata = _json_safe_metadata(metadata)
+        # Keep this assertion local to the shim so future metadata regressions
+        # fail here instead of deep inside SqliteSaver.put.
+        json.dumps(safe_metadata, ensure_ascii=False)
+        return super().put(config, checkpoint, safe_metadata, new_versions)
 
 
 def _db_path(data_dir: str | Path, ticker: str) -> Path:
@@ -36,7 +80,7 @@ def get_checkpointer(data_dir: str | Path, ticker: str) -> Generator[SqliteSaver
     db = _db_path(data_dir, ticker)
     conn = sqlite3.connect(str(db), check_same_thread=False)
     try:
-        saver = SqliteSaver(conn)
+        saver = TradingAgentsSqliteSaver(conn)
         saver.setup()
         yield saver
     finally:

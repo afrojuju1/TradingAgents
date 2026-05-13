@@ -1,0 +1,78 @@
+# Ollama Performance Plan
+
+This captures the follow-up ideas from the Ollama tuning review. The checkpoint
+serialization fix is handled separately.
+
+## Current Local Ollama Profile
+
+- GPU backend: ROCm on Radeon AI PRO R9700
+- `OLLAMA_CONTEXT_LENGTH=16384`
+- `OLLAMA_NUM_PARALLEL=2`
+- `OLLAMA_MAX_LOADED_MODELS=2`
+- `OLLAMA_KEEP_ALIVE=2h`
+- `OLLAMA_FLASH_ATTENTION=1`
+- `OLLAMA_KV_CACHE_TYPE=q8_0`
+- Quick model: `qwen3:8b`
+- Balanced deep model: `glm-4.7-flash:latest`
+- High quality deep model, slower: `qwen3.6:35b`
+
+## Observed Constraints
+
+- `qwen3:8b` supports two parallel Ollama requests on this setup.
+- `qwen3.6:35b` and `qwen3.5:27b-q4_K_M` reported that their architecture
+  does not currently support parallel requests.
+- At 32K context, the larger deep models cause model eviction/reload churn.
+- At 16K context, `qwen3:8b` and `glm-4.7-flash:latest` can stay resident
+  together on GPU.
+- The current TradingAgents graph is mostly sequential, so Ollama parallelism
+  helps multi-ticker runs more than a single run until the graph is changed.
+
+## Backlog
+
+1. Parallelize independent analyst nodes.
+   - Run market, sentiment, news, and fundamentals analysts concurrently.
+   - Merge their reports before the researcher stage.
+   - This is the largest single-run speed opportunity.
+
+2. Prefetch data before LLM calls.
+   - Fetch price, indicators, fundamentals, news, Reddit, and StockTwits once.
+   - Pass prepared data to analyst prompts instead of letting each analyst
+     discover data through tool-call loops.
+
+3. Add ticker/date data caching.
+   - Cache yfinance, financial statements, news, and social data under the
+     configured cache directory.
+   - Key by ticker, trade date, vendor, and lookback window.
+
+4. Add a fast run profile.
+   - Quick and deep model both set to `qwen3:8b`.
+   - Analysts reduced to market plus fundamentals by default.
+   - Shorter report instructions and lower max output tokens.
+
+5. Add a balanced run profile.
+   - Quick model `qwen3:8b`.
+   - Deep model `glm-4.7-flash:latest`.
+   - All analysts enabled, one debate round, one risk round.
+
+6. Add a quality run profile.
+   - Quick model `qwen3:8b`.
+   - Deep model `qwen3.6:35b`.
+   - Accept model reload cost for final research and portfolio quality.
+
+7. Trim prompt and report size.
+   - Remove repeated generic instructions across agents.
+   - Add explicit concise report targets.
+   - Consider per-agent token limits.
+
+8. Improve CLI observability for non-interactive runs.
+   - Log node start/end timestamps.
+   - Log model name, tool-call counts, and elapsed time per node.
+   - Save partial progress in a readable run log.
+
+9. Benchmark profiles.
+   - Run the same ticker/date through fast, balanced, and quality profiles.
+   - Record wall time, model reloads, VRAM use, and final rating.
+
+10. Review checkpoint/resume after serialization fix.
+    - Confirm checkpointing works through a full local Ollama graph run.
+    - Keep checkpoint state small enough that saving does not dominate runtime.
