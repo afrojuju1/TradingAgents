@@ -19,9 +19,9 @@ def test_build_prefetch_tasks_for_full_analyst_set():
     assert methods.count("get_stock_data") == 1
     assert methods.count("get_indicators") == len(prefetch.COMMON_PREFETCH_INDICATORS)
     assert "get_fundamentals" in methods
-    assert "get_balance_sheet" in methods
-    assert "get_cashflow" in methods
-    assert "get_income_statement" in methods
+    assert "get_balance_sheet" not in methods
+    assert "get_cashflow" not in methods
+    assert "get_income_statement" not in methods
     assert "get_news" in methods
     assert "get_global_news" in methods
     assert "get_insider_transactions" in methods
@@ -49,4 +49,3 @@ def test_prefetch_skips_when_cache_disabled(monkeypatch):
 
     assert results == []
     assert calls == 0
-

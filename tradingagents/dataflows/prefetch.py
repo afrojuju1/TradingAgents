@@ -54,14 +54,7 @@ def build_prefetch_tasks(
             tasks.append(PrefetchTask("get_indicators", (ticker, indicator, trade_date, 30), {}))
 
     if "fundamentals" in selected:
-        tasks.extend(
-            [
-                PrefetchTask("get_fundamentals", (ticker, trade_date), {}),
-                PrefetchTask("get_balance_sheet", (ticker, "quarterly", trade_date), {}),
-                PrefetchTask("get_cashflow", (ticker, "quarterly", trade_date), {}),
-                PrefetchTask("get_income_statement", (ticker, "quarterly", trade_date), {}),
-            ]
-        )
+        tasks.append(PrefetchTask("get_fundamentals", (ticker, trade_date), {}))
 
     if "social" in selected or "news" in selected:
         start_date, end_date = _date_window(trade_date, 7)

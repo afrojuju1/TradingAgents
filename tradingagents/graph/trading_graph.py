@@ -30,10 +30,7 @@ from tradingagents.dataflows.prefetch import prefetch_data
 # Import the new abstract tool methods from agent_utils
 from tradingagents.agents.utils.agent_utils import (
     get_market_summary,
-    get_fundamentals,
-    get_balance_sheet,
-    get_cashflow,
-    get_income_statement,
+    get_fundamentals_summary,
     get_news,
     get_insider_transactions,
     get_global_news
@@ -194,11 +191,8 @@ class TradingAgentsGraph:
             ),
             "fundamentals": ToolNode(
                 [
-                    # Fundamental analysis tools
-                    get_fundamentals,
-                    get_balance_sheet,
-                    get_cashflow,
-                    get_income_statement,
+                    # Deterministic SEC fundamentals summary
+                    get_fundamentals_summary,
                 ]
             ),
         }

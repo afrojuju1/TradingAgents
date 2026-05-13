@@ -1,14 +1,9 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
-    get_balance_sheet,
-    get_cashflow,
-    get_fundamentals,
-    get_income_statement,
-    get_insider_transactions,
+    get_fundamentals_summary,
     get_language_instruction,
 )
-from tradingagents.dataflows.config import get_config
 
 
 def _strip_portfolio_recommendations(report: str) -> str:
@@ -55,18 +50,15 @@ def create_fundamentals_analyst(llm):
         instrument_context = build_instrument_context(state["company_of_interest"])
 
         tools = [
-            get_fundamentals,
-            get_balance_sheet,
-            get_cashflow,
-            get_income_statement,
+            get_fundamentals_summary,
         ]
 
         system_message = (
-            "You are a researcher tasked with analyzing fundamental information over the past week about a company. Please write a comprehensive report of the company's fundamental information such as financial documents, company profile, basic company financials, and company financial history to gain a full view of the company's fundamental information to inform traders. Make sure to include as much detail as possible. Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
+            "You are a researcher tasked with analyzing company fundamentals. Call get_fundamentals_summary exactly once for the instrument and current date before writing your report. The tool returns deterministic, parsed SEC facts plus accounting-context guardrails. Use those numeric values exactly and do not cite balance-sheet, income-statement, cash-flow, leverage, or liquidity figures that are absent from the tool result."
             + " Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."
-            + " Use the available tools: `get_fundamentals` for comprehensive company analysis, `get_balance_sheet`, `get_cashflow`, and `get_income_statement` for specific financial statements."
-            + " For SEC-derived values, cite the period end, filing date, form type, accession, and source concept when the tool output provides them. Keep balance sheet debt, management-stated debt, and market-data valuation fields separate when they come from different sources."
-            + " Preserve tool-provided periods and values exactly; do not fill missing SEC metrics from older periods unless the tool explicitly labels them as older latest-available metrics. If the tool includes Data Quality Notes, repeat the warning near any affected metric."
+            + " For SEC-derived values, cite the period end, filing date, form type, accession, and source concept when the tool output provides them."
+            + " Preserve the tool's accounting context. For banks and financial companies, do not treat negative operating cash flow as standalone distress, do not benchmark debt-to-equity or current-ratio style metrics like industrial companies, and do not claim liabilities exceed assets when the deterministic summary says assets exceed liabilities."
+            + " Keep market valuation fields separate; do not invent market cap, AUM, price targets, dividend yields, or macro numbers unless another tool supplied them."
             + " Your role is analysis only; do not make the final BUY/HOLD/SELL portfolio decision, and do not include a recommendation to buy, hold, add, reduce, or sell."
             + get_language_instruction(),
         )
