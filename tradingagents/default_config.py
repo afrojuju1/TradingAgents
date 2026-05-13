@@ -23,6 +23,17 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_PARALLEL_ANALYST_WORKERS": "parallel_analyst_workers",
     "TRADINGAGENTS_DATA_TOOL_CACHE_ENABLED": "data_tool_cache_enabled",
     "TRADINGAGENTS_DATA_TOOL_CACHE_TTL_SECONDS": "data_tool_cache_ttl_seconds",
+    "TRADINGAGENTS_SEC_IDENTITY":       "sec_identity",
+    "TRADINGAGENTS_SEC_PROXY_URL":      "sec_proxy_url",
+    "TRADINGAGENTS_SEC_USE_GLUETUN":    "sec_use_gluetun",
+    "TRADINGAGENTS_GLUETUN_ENV_PATH":   "gluetun_env_path",
+    "TRADINGAGENTS_SEC_REQUEST_TIMEOUT": "sec_request_timeout",
+    "TRADINGAGENTS_PREFETCH_DATA_ENABLED": "prefetch_data_enabled",
+    "TRADINGAGENTS_PREFETCH_WORKERS":   "prefetch_workers",
+}
+
+_NESTED_ENV_OVERRIDES = {
+    "TRADINGAGENTS_FUNDAMENTAL_DATA_VENDOR": ("data_vendors", "fundamental_data"),
 }
 
 
@@ -44,6 +55,13 @@ def _apply_env_overrides(config: dict) -> dict:
         if raw is None or raw == "":
             continue
         config[key] = _coerce(raw, config.get(key))
+
+    for env_var, (parent_key, child_key) in _NESTED_ENV_OVERRIDES.items():
+        raw = os.environ.get(env_var)
+        if raw is None or raw == "":
+            continue
+        config.setdefault(parent_key, {})[child_key] = raw
+
     return config
 
 
@@ -80,6 +98,11 @@ DEFAULT_CONFIG = _apply_env_overrides(apply_run_profile({
     # providers with strict rate limits keep the conservative serial flow.
     "parallel_analysts": False,
     "parallel_analyst_workers": 4,
+    # Optional deterministic prefetch warms the vendor tool cache before LLM
+    # analysts start. This is disabled by default because some workflows prefer
+    # truly on-demand network calls, but local Ollama runs can opt in.
+    "prefetch_data_enabled": False,
+    "prefetch_workers": 4,
     # Output language for analyst reports and final decision
     # Internal agent debate stays in English for reasoning quality
     "output_language": "English",
@@ -110,6 +133,14 @@ DEFAULT_CONFIG = _apply_env_overrides(apply_run_profile({
     # Positive values expire cached tool results after this many seconds.
     # Values <= 0 keep cache entries until the files are manually removed.
     "data_tool_cache_ttl_seconds": 6 * 60 * 60,
+    # SEC/EDGAR settings. `sec_proxy_url` may point at the authenticated local
+    # Gluetun HTTP proxy; Dockerized workflows can instead share Gluetun's
+    # network namespace and leave the proxy empty.
+    "sec_identity": os.getenv("EDGAR_IDENTITY"),
+    "sec_proxy_url": None,
+    "sec_use_gluetun": False,
+    "gluetun_env_path": None,
+    "sec_request_timeout": 30,
     # Category-level configuration (default for all tools in category)
     "data_vendors": {
         "core_stock_apis": "yfinance",       # Options: alpha_vantage, yfinance

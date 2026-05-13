@@ -25,6 +25,7 @@ from tradingagents.agents.utils.agent_states import (
     RiskDebateState,
 )
 from tradingagents.dataflows.config import set_config
+from tradingagents.dataflows.prefetch import prefetch_data
 
 # Import the new abstract tool methods from agent_utils
 from tradingagents.agents.utils.agent_utils import (
@@ -73,6 +74,7 @@ class TradingAgentsGraph:
                 "selected_analysts",
                 ["market", "social", "news", "fundamentals"],
             )
+        self.selected_analysts = list(selected_analysts)
 
         # Update the interface's config
         set_config(self.config)
@@ -103,6 +105,12 @@ class TradingAgentsGraph:
 
         self.deep_thinking_llm = deep_client.get_llm()
         self.quick_thinking_llm = quick_client.get_llm()
+        logger.info(
+            "Initialized TradingAgents provider=%s quick_model=%s deep_model=%s",
+            self.config["llm_provider"],
+            self.config["quick_think_llm"],
+            self.config["deep_think_llm"],
+        )
         
         self.memory_log = TradingMemoryLog(self.config)
 
@@ -135,7 +143,7 @@ class TradingAgentsGraph:
         self.log_states_dict = {}  # date to full state dict
 
         # Set up the graph: keep the workflow for recompilation with a checkpointer.
-        self.workflow = self.graph_setup.setup_graph(selected_analysts)
+        self.workflow = self.graph_setup.setup_graph(self.selected_analysts)
         self.graph = self.workflow.compile()
         self._checkpointer_ctx = None
 
@@ -309,6 +317,22 @@ class TradingAgentsGraph:
 
         # Resolve any pending memory-log entries for this ticker before the pipeline runs.
         self._resolve_pending_entries(company_name)
+
+        prefetch_results = prefetch_data(
+            company_name,
+            str(trade_date),
+            self.selected_analysts,
+            self.config,
+        )
+        if prefetch_results:
+            ok_count = sum(1 for item in prefetch_results if item["status"] == "ok")
+            logger.info(
+                "Prefetch complete for %s on %s: %d/%d ok",
+                company_name,
+                trade_date,
+                ok_count,
+                len(prefetch_results),
+            )
 
         # Recompile with a checkpointer if the user opted in.
         if self.config.get("checkpoint_enabled"):

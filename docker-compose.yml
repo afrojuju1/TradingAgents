@@ -30,6 +30,20 @@ services:
     profiles:
       - ollama
 
+  tradingagents-gluetun:
+    build: .
+    env_file:
+      - .env
+    environment:
+      - TRADINGAGENTS_SEC_USE_GLUETUN=true
+    network_mode: "container:gluetun"
+    volumes:
+      - tradingagents_data:/home/appuser/.tradingagents
+    tty: true
+    stdin_open: true
+    profiles:
+      - gluetun
+
 volumes:
   tradingagents_data:
   ollama_data:

@@ -1,6 +1,8 @@
 # TradingAgents/graph/setup.py
 
+import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from time import perf_counter
 from typing import Any, Callable, Dict
 
 from langchain_core.messages import HumanMessage
@@ -11,6 +13,8 @@ from tradingagents.agents import *
 from tradingagents.agents.utils.agent_states import AgentState
 
 from .conditional_logic import ConditionalLogic
+
+logger = logging.getLogger(__name__)
 
 
 _REPORT_FIELD_BY_ANALYST = {
@@ -39,6 +43,7 @@ def _run_single_analyst_loop(
     max_tool_iterations: int = 8,
 ) -> dict:
     """Run one analyst and its tool loop against an isolated message state."""
+    start = perf_counter()
     report_field = _REPORT_FIELD_BY_ANALYST[analyst_type]
     state = {
         "messages": [HumanMessage(content=base_state["company_of_interest"])],
@@ -59,6 +64,11 @@ def _run_single_analyst_loop(
 
         last_message = state["messages"][-1]
         if not getattr(last_message, "tool_calls", None):
+            logger.info(
+                "Analyst completed: %s elapsed=%.2fs",
+                analyst_type,
+                perf_counter() - start,
+            )
             return {report_field: state.get(report_field, "")}
 
         tool_update = tool_node.invoke(state)
@@ -67,6 +77,18 @@ def _run_single_analyst_loop(
     raise RuntimeError(
         f"{analyst_type} analyst exceeded {max_tool_iterations} tool iterations"
     )
+
+
+def _timed_node(name: str, node: Callable[[dict], dict]) -> Callable[[dict], dict]:
+    def wrapped(state: dict) -> dict:
+        start = perf_counter()
+        logger.info("Node start: %s", name)
+        try:
+            return node(state)
+        finally:
+            logger.info("Node end: %s elapsed=%.2fs", name, perf_counter() - start)
+
+    return wrapped
 
 
 class GraphSetup:
@@ -110,8 +132,9 @@ class GraphSetup:
         tool_nodes = {}
 
         if "market" in selected_analysts:
-            analyst_nodes["market"] = create_market_analyst(
-                self.quick_thinking_llm
+            analyst_nodes["market"] = _timed_node(
+                "Market Analyst",
+                create_market_analyst(self.quick_thinking_llm),
             )
             delete_nodes["market"] = create_msg_delete()
             tool_nodes["market"] = self.tool_nodes["market"]
@@ -121,37 +144,61 @@ class GraphSetup:
             # user configs; the underlying agent has been renamed to
             # sentiment_analyst (the old name advertised social-media data
             # the agent never had access to — see issue #557).
-            analyst_nodes["social"] = create_sentiment_analyst(
-                self.quick_thinking_llm
+            analyst_nodes["social"] = _timed_node(
+                "Sentiment Analyst",
+                create_sentiment_analyst(self.quick_thinking_llm),
             )
             delete_nodes["social"] = create_msg_delete()
             tool_nodes["social"] = self.tool_nodes["social"]
 
         if "news" in selected_analysts:
-            analyst_nodes["news"] = create_news_analyst(
-                self.quick_thinking_llm
+            analyst_nodes["news"] = _timed_node(
+                "News Analyst",
+                create_news_analyst(self.quick_thinking_llm),
             )
             delete_nodes["news"] = create_msg_delete()
             tool_nodes["news"] = self.tool_nodes["news"]
 
         if "fundamentals" in selected_analysts:
-            analyst_nodes["fundamentals"] = create_fundamentals_analyst(
-                self.quick_thinking_llm
+            analyst_nodes["fundamentals"] = _timed_node(
+                "Fundamentals Analyst",
+                create_fundamentals_analyst(self.quick_thinking_llm),
             )
             delete_nodes["fundamentals"] = create_msg_delete()
             tool_nodes["fundamentals"] = self.tool_nodes["fundamentals"]
 
         # Create researcher and manager nodes
-        bull_researcher_node = create_bull_researcher(self.quick_thinking_llm)
-        bear_researcher_node = create_bear_researcher(self.quick_thinking_llm)
-        research_manager_node = create_research_manager(self.deep_thinking_llm)
-        trader_node = create_trader(self.quick_thinking_llm)
+        bull_researcher_node = _timed_node(
+            "Bull Researcher",
+            create_bull_researcher(self.quick_thinking_llm),
+        )
+        bear_researcher_node = _timed_node(
+            "Bear Researcher",
+            create_bear_researcher(self.quick_thinking_llm),
+        )
+        research_manager_node = _timed_node(
+            "Research Manager",
+            create_research_manager(self.deep_thinking_llm),
+        )
+        trader_node = _timed_node("Trader", create_trader(self.quick_thinking_llm))
 
         # Create risk analysis nodes
-        aggressive_analyst = create_aggressive_debator(self.quick_thinking_llm)
-        neutral_analyst = create_neutral_debator(self.quick_thinking_llm)
-        conservative_analyst = create_conservative_debator(self.quick_thinking_llm)
-        portfolio_manager_node = create_portfolio_manager(self.deep_thinking_llm)
+        aggressive_analyst = _timed_node(
+            "Aggressive Analyst",
+            create_aggressive_debator(self.quick_thinking_llm),
+        )
+        neutral_analyst = _timed_node(
+            "Neutral Analyst",
+            create_neutral_debator(self.quick_thinking_llm),
+        )
+        conservative_analyst = _timed_node(
+            "Conservative Analyst",
+            create_conservative_debator(self.quick_thinking_llm),
+        )
+        portfolio_manager_node = _timed_node(
+            "Portfolio Manager",
+            create_portfolio_manager(self.deep_thinking_llm),
+        )
 
         # Create workflow
         workflow = StateGraph(AgentState)

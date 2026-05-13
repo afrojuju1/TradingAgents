@@ -13,6 +13,9 @@ def _reload_with_env(monkeypatch, **overrides):
     """Set/clear env vars then reload default_config to re-evaluate DEFAULT_CONFIG."""
     for key in list(default_config_module._ENV_OVERRIDES):
         monkeypatch.delenv(key, raising=False)
+    for key in list(default_config_module._NESTED_ENV_OVERRIDES):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.delenv("EDGAR_IDENTITY", raising=False)
     monkeypatch.delenv("TRADINGAGENTS_RUN_PROFILE", raising=False)
     for key, val in overrides.items():
         monkeypatch.setenv(key, val)
@@ -36,8 +39,14 @@ def test_no_env_uses_built_in_defaults(monkeypatch):
     assert dc.DEFAULT_CONFIG["checkpoint_enabled"] is False
     assert dc.DEFAULT_CONFIG["parallel_analysts"] is False
     assert dc.DEFAULT_CONFIG["parallel_analyst_workers"] == 4
+    assert dc.DEFAULT_CONFIG["prefetch_data_enabled"] is False
+    assert dc.DEFAULT_CONFIG["prefetch_workers"] == 4
     assert dc.DEFAULT_CONFIG["data_tool_cache_enabled"] is False
     assert dc.DEFAULT_CONFIG["data_tool_cache_ttl_seconds"] == 21600
+    assert dc.DEFAULT_CONFIG["sec_identity"] is None
+    assert dc.DEFAULT_CONFIG["sec_proxy_url"] is None
+    assert dc.DEFAULT_CONFIG["sec_use_gluetun"] is False
+    assert dc.DEFAULT_CONFIG["sec_request_timeout"] == 30
 
 
 def test_string_overrides(monkeypatch):
@@ -48,12 +57,18 @@ def test_string_overrides(monkeypatch):
         TRADINGAGENTS_QUICK_THINK_LLM="gemini-3-flash-preview",
         TRADINGAGENTS_LLM_BACKEND_URL="https://example.invalid/v1",
         TRADINGAGENTS_OUTPUT_LANGUAGE="Chinese",
+        TRADINGAGENTS_SEC_IDENTITY="Research Bot research@example.com",
+        TRADINGAGENTS_SEC_PROXY_URL="http://proxy.example:8888",
+        TRADINGAGENTS_GLUETUN_ENV_PATH="/tmp/gluetun.env",
     )
     assert dc.DEFAULT_CONFIG["llm_provider"] == "google"
     assert dc.DEFAULT_CONFIG["deep_think_llm"] == "gemini-3-pro-preview"
     assert dc.DEFAULT_CONFIG["quick_think_llm"] == "gemini-3-flash-preview"
     assert dc.DEFAULT_CONFIG["backend_url"] == "https://example.invalid/v1"
     assert dc.DEFAULT_CONFIG["output_language"] == "Chinese"
+    assert dc.DEFAULT_CONFIG["sec_identity"] == "Research Bot research@example.com"
+    assert dc.DEFAULT_CONFIG["sec_proxy_url"] == "http://proxy.example:8888"
+    assert dc.DEFAULT_CONFIG["gluetun_env_path"] == "/tmp/gluetun.env"
 
 
 def test_int_coercion(monkeypatch):
@@ -63,6 +78,8 @@ def test_int_coercion(monkeypatch):
         TRADINGAGENTS_MAX_RISK_ROUNDS="2",
         TRADINGAGENTS_PARALLEL_ANALYST_WORKERS="2",
         TRADINGAGENTS_DATA_TOOL_CACHE_TTL_SECONDS="60",
+        TRADINGAGENTS_SEC_REQUEST_TIMEOUT="45",
+        TRADINGAGENTS_PREFETCH_WORKERS="3",
     )
     assert dc.DEFAULT_CONFIG["max_debate_rounds"] == 3
     assert isinstance(dc.DEFAULT_CONFIG["max_debate_rounds"], int)
@@ -72,6 +89,10 @@ def test_int_coercion(monkeypatch):
     assert isinstance(dc.DEFAULT_CONFIG["parallel_analyst_workers"], int)
     assert dc.DEFAULT_CONFIG["data_tool_cache_ttl_seconds"] == 60
     assert isinstance(dc.DEFAULT_CONFIG["data_tool_cache_ttl_seconds"], int)
+    assert dc.DEFAULT_CONFIG["sec_request_timeout"] == 45
+    assert isinstance(dc.DEFAULT_CONFIG["sec_request_timeout"], int)
+    assert dc.DEFAULT_CONFIG["prefetch_workers"] == 3
+    assert isinstance(dc.DEFAULT_CONFIG["prefetch_workers"], int)
 
 
 @pytest.mark.parametrize(
@@ -87,10 +108,23 @@ def test_bool_coercion(monkeypatch, raw, expected):
         TRADINGAGENTS_CHECKPOINT_ENABLED=raw,
         TRADINGAGENTS_PARALLEL_ANALYSTS=raw,
         TRADINGAGENTS_DATA_TOOL_CACHE_ENABLED=raw,
+        TRADINGAGENTS_SEC_USE_GLUETUN=raw,
+        TRADINGAGENTS_PREFETCH_DATA_ENABLED=raw,
     )
     assert dc.DEFAULT_CONFIG["checkpoint_enabled"] is expected
     assert dc.DEFAULT_CONFIG["parallel_analysts"] is expected
     assert dc.DEFAULT_CONFIG["data_tool_cache_enabled"] is expected
+    assert dc.DEFAULT_CONFIG["sec_use_gluetun"] is expected
+    assert dc.DEFAULT_CONFIG["prefetch_data_enabled"] is expected
+
+
+def test_nested_vendor_override(monkeypatch):
+    dc = _reload_with_env(
+        monkeypatch,
+        TRADINGAGENTS_FUNDAMENTAL_DATA_VENDOR="edgar,yfinance",
+    )
+
+    assert dc.DEFAULT_CONFIG["data_vendors"]["fundamental_data"] == "edgar,yfinance"
 
 
 def test_empty_env_value_is_passthrough(monkeypatch):

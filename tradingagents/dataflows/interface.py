@@ -29,6 +29,13 @@ from .alpha_vantage import (
     get_global_news as get_alpha_vantage_global_news,
 )
 from .alpha_vantage_common import AlphaVantageRateLimitError
+from .edgar_fundamentals import (
+    get_fundamentals as get_edgar_fundamentals,
+    get_balance_sheet as get_edgar_balance_sheet,
+    get_cashflow as get_edgar_cashflow,
+    get_income_statement as get_edgar_income_statement,
+)
+from .exceptions import DataVendorUnavailableError
 
 # Configuration and routing logic
 from .config import get_config
@@ -69,10 +76,12 @@ TOOLS_CATEGORIES = {
 VENDOR_LIST = [
     "yfinance",
     "alpha_vantage",
+    "edgar",
 ]
 
 _CACHE_LOCKS: dict[str, threading.Lock] = {}
 _CACHE_LOCKS_GUARD = threading.Lock()
+_TOOL_CACHE_VERSION = 2
 
 # Mapping of methods to their vendor-specific implementations
 VENDOR_METHODS = {
@@ -88,18 +97,22 @@ VENDOR_METHODS = {
     },
     # fundamental_data
     "get_fundamentals": {
+        "edgar": get_edgar_fundamentals,
         "alpha_vantage": get_alpha_vantage_fundamentals,
         "yfinance": get_yfinance_fundamentals,
     },
     "get_balance_sheet": {
+        "edgar": get_edgar_balance_sheet,
         "alpha_vantage": get_alpha_vantage_balance_sheet,
         "yfinance": get_yfinance_balance_sheet,
     },
     "get_cashflow": {
+        "edgar": get_edgar_cashflow,
         "alpha_vantage": get_alpha_vantage_cashflow,
         "yfinance": get_yfinance_cashflow,
     },
     "get_income_statement": {
+        "edgar": get_edgar_income_statement,
         "alpha_vantage": get_alpha_vantage_income_statement,
         "yfinance": get_yfinance_income_statement,
     },
@@ -147,6 +160,7 @@ def _tool_cache_enabled(config: dict) -> bool:
 
 def _tool_cache_key(method: str, vendor: str, args: tuple, kwargs: dict) -> str:
     payload = {
+        "cache_version": _TOOL_CACHE_VERSION,
         "method": method,
         "vendor": vendor,
         "args": args,
@@ -213,6 +227,7 @@ def _write_tool_cache(
     path = _tool_cache_path(config, method, vendor, cache_key)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     payload = {
+        "cache_version": _TOOL_CACHE_VERSION,
         "created_at": time.time(),
         "method": method,
         "vendor": vendor,
@@ -297,7 +312,7 @@ def route_to_vendor(method: str, *args, **kwargs):
                 args,
                 kwargs,
             )
-        except AlphaVantageRateLimitError:
-            continue  # Only rate limits trigger fallback
+        except (AlphaVantageRateLimitError, DataVendorUnavailableError):
+            continue
 
     raise RuntimeError(f"No available vendor for '{method}'")

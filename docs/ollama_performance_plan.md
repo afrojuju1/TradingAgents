@@ -3,6 +3,9 @@
 This captures the follow-up ideas from the Ollama tuning review. The checkpoint
 serialization fix is handled separately.
 
+SEC fundamentals accuracy, edgartools integration, and Gluetun routing are
+tracked in `docs/sec_fundamentals_plan.md`.
+
 ## Current Local Ollama Profile
 
 - GPU backend: ROCm on Radeon AI PRO R9700

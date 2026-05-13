@@ -30,6 +30,7 @@ dependencies = [
     "tqdm>=4.67.1",
     "typing-extensions>=4.14.0",
     "yfinance>=0.2.63",
+    "edgartools",
 ]
 
 [project.scripts]
@@ -51,4 +52,12 @@ markers = [
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
+]
+
+[tool.uv.sources]
+edgartools = { path = "../edgartools", editable = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
 ]

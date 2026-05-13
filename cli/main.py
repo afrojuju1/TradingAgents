@@ -1200,6 +1200,18 @@ def run_analysis(checkpoint: bool = False):
         message_buffer.add_message(
             "System", f"Completed analysis for {selections['analysis_date']}"
         )
+        stats = stats_handler.get_stats()
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(
+                "[Run Stats] "
+                f"provider={config['llm_provider']} "
+                f"quick_model={config['quick_think_llm']} "
+                f"deep_model={config['deep_think_llm']} "
+                f"llm_calls={stats['llm_calls']} "
+                f"tool_calls={stats['tool_calls']} "
+                f"tokens_in={stats['tokens_in']} "
+                f"tokens_out={stats['tokens_out']}\n"
+            )
 
         # Update final report sections
         for section in message_buffer.report_sections.keys():

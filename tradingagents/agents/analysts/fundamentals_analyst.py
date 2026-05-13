@@ -11,6 +11,44 @@ from tradingagents.agents.utils.agent_utils import (
 from tradingagents.dataflows.config import get_config
 
 
+def _strip_portfolio_recommendations(report: str) -> str:
+    """Remove portfolio-action recommendation blocks from analyst output."""
+    lines = report.splitlines()
+    cleaned: list[str] = []
+    skipping = False
+
+    for line in lines:
+        stripped = line.strip()
+        lowered = stripped.lower()
+        is_recommendation_start = (
+            "recommendation" in lowered
+            and (
+                lowered.startswith(("recommendation", "**recommendation", "#"))
+                or lowered.rstrip(":").endswith("recommendation")
+                or "**recommendation" in lowered
+            )
+        )
+
+        if is_recommendation_start:
+            skipping = True
+            continue
+
+        if skipping:
+            if not stripped:
+                skipping = False
+            elif stripped == "---":
+                skipping = False
+                cleaned.append(line)
+            elif stripped.startswith("#") and "recommendation" not in lowered:
+                skipping = False
+                cleaned.append(line)
+            continue
+
+        cleaned.append(line)
+
+    return "\n".join(cleaned).strip()
+
+
 def create_fundamentals_analyst(llm):
     def fundamentals_analyst_node(state):
         current_date = state["trade_date"]
@@ -27,6 +65,9 @@ def create_fundamentals_analyst(llm):
             "You are a researcher tasked with analyzing fundamental information over the past week about a company. Please write a comprehensive report of the company's fundamental information such as financial documents, company profile, basic company financials, and company financial history to gain a full view of the company's fundamental information to inform traders. Make sure to include as much detail as possible. Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
             + " Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."
             + " Use the available tools: `get_fundamentals` for comprehensive company analysis, `get_balance_sheet`, `get_cashflow`, and `get_income_statement` for specific financial statements."
+            + " For SEC-derived values, cite the period end, filing date, form type, accession, and source concept when the tool output provides them. Keep balance sheet debt, management-stated debt, and market-data valuation fields separate when they come from different sources."
+            + " Preserve tool-provided periods and values exactly; do not fill missing SEC metrics from older periods unless the tool explicitly labels them as older latest-available metrics. If the tool includes Data Quality Notes, repeat the warning near any affected metric."
+            + " Your role is analysis only; do not make the final BUY/HOLD/SELL portfolio decision, and do not include a recommendation to buy, hold, add, reduce, or sell."
             + get_language_instruction(),
         )
 
@@ -38,8 +79,6 @@ def create_fundamentals_analyst(llm):
                     " Use the provided tools to progress towards answering the question."
                     " If you are unable to fully answer, that's OK; another assistant with different tools"
                     " will help where you left off. Execute what you can to make progress."
-                    " If you or any other assistant has the FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL** or deliverable,"
-                    " prefix your response with FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL** so the team knows to stop."
                     " You have access to the following tools: {tool_names}.\n{system_message}"
                     "For your reference, the current date is {current_date}. {instrument_context}",
                 ),
@@ -59,7 +98,7 @@ def create_fundamentals_analyst(llm):
         report = ""
 
         if len(result.tool_calls) == 0:
-            report = result.content
+            report = _strip_portfolio_recommendations(result.content)
 
         return {
             "messages": [result],
