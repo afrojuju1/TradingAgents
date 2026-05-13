@@ -26,6 +26,7 @@ from tradingagents.agents.utils.agent_states import (
 )
 from tradingagents.dataflows.config import set_config
 from tradingagents.dataflows.prefetch import prefetch_data
+from tradingagents.dataflows.interface import get_data_tool_events, reset_data_tool_events
 
 # Import the new abstract tool methods from agent_utils
 from tradingagents.agents.utils.agent_utils import (
@@ -303,6 +304,7 @@ class TradingAgentsGraph:
         successful node on a subsequent invocation with the same ticker+date.
         """
         self.ticker = company_name
+        reset_data_tool_events()
 
         # Resolve any pending memory-log entries for this ticker before the pipeline runs.
         self._resolve_pending_entries(company_name)
@@ -380,6 +382,7 @@ class TradingAgentsGraph:
             final_state = self.graph.invoke(init_agent_state, **args)
 
         # Store current state for reflection.
+        final_state["data_tool_events"] = get_data_tool_events()
         self.curr_state = final_state
 
         # Log state to disk.
@@ -414,6 +417,7 @@ class TradingAgentsGraph:
             "news_sources": final_state.get("news_sources", {}),
             "sentiment_facts": final_state.get("sentiment_facts", {}),
             "claim_checks": final_state.get("claim_checks", []),
+            "data_tool_events": final_state.get("data_tool_events", []),
             "investment_debate_state": {
                 "bull_history": final_state["investment_debate_state"]["bull_history"],
                 "bear_history": final_state["investment_debate_state"]["bear_history"],

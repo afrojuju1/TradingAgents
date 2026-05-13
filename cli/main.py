@@ -44,6 +44,7 @@ _ARTIFACT_FILES = {
     "fundamental_facts": "fundamental_facts.json",
     "news_sources": "news_sources.json",
     "sentiment_facts": "sentiment_facts.json",
+    "data_tool_events": "data_tool_events.json",
 }
 
 

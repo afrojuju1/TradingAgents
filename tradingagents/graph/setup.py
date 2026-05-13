@@ -61,6 +61,7 @@ def _run_single_analyst_loop(
         "news_sources": {},
         "sentiment_facts": {},
         "claim_checks": [],
+        "data_tool_events": [],
     }
 
     for _ in range(max_tool_iterations):

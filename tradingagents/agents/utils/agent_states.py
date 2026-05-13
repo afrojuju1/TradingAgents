@@ -61,6 +61,7 @@ class AgentState(MessagesState):
     news_sources: Annotated[dict, "Deterministic news source artifact"]
     sentiment_facts: Annotated[dict, "Deterministic sentiment fact artifact"]
     claim_checks: Annotated[list, "Report claim/proof check artifact"]
+    data_tool_events: Annotated[list, "Per-run data provider/cache telemetry"]
 
     # researcher team discussion step
     investment_debate_state: Annotated[

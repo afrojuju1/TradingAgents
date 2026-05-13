@@ -82,6 +82,31 @@ VENDOR_LIST = [
 _CACHE_LOCKS: dict[str, threading.Lock] = {}
 _CACHE_LOCKS_GUARD = threading.Lock()
 _TOOL_CACHE_VERSION = 2
+_DATA_TOOL_EVENTS: list[dict] = []
+_DATA_TOOL_EVENTS_LOCK = threading.Lock()
+
+
+def reset_data_tool_events() -> None:
+    """Clear per-run data tool telemetry."""
+    with _DATA_TOOL_EVENTS_LOCK:
+        _DATA_TOOL_EVENTS.clear()
+
+
+def get_data_tool_events() -> list[dict]:
+    """Return a snapshot of per-run data tool telemetry."""
+    with _DATA_TOOL_EVENTS_LOCK:
+        return [dict(event) for event in _DATA_TOOL_EVENTS]
+
+
+def _record_data_tool_event(event: dict) -> None:
+    with _DATA_TOOL_EVENTS_LOCK:
+        _DATA_TOOL_EVENTS.append(event)
+
+
+def _data_result_status(result) -> str:
+    if isinstance(result, str) and result.lstrip().lower().startswith("error "):
+        return "error"
+    return "ok"
 
 # Mapping of methods to their vendor-specific implementations
 VENDOR_METHODS = {
@@ -261,21 +286,85 @@ def _call_vendor_with_cache(
     args: tuple,
     kwargs: dict,
 ):
+    start = time.perf_counter()
     if not _tool_cache_enabled(config):
-        return impl_func(*args, **kwargs)
+        try:
+            result = impl_func(*args, **kwargs)
+        except Exception as exc:
+            _record_data_tool_event(
+                {
+                    "method": method,
+                    "vendor": vendor,
+                    "status": "error",
+                    "cache": "disabled",
+                    "elapsed_seconds": time.perf_counter() - start,
+                    "error_type": type(exc).__name__,
+                }
+            )
+            raise
+        _record_data_tool_event(
+            {
+                "method": method,
+                "vendor": vendor,
+                "status": _data_result_status(result),
+                "cache": "disabled",
+                "elapsed_seconds": time.perf_counter() - start,
+            }
+        )
+        return result
 
     cache_key = _tool_cache_key(method, vendor, args, kwargs)
     cached_result = _read_tool_cache(config, method, vendor, cache_key)
     if cached_result is not None:
+        _record_data_tool_event(
+            {
+                "method": method,
+                "vendor": vendor,
+                "status": _data_result_status(cached_result),
+                "cache": "hit",
+                "elapsed_seconds": time.perf_counter() - start,
+            }
+        )
         return cached_result
 
     with _cache_lock(cache_key):
         cached_result = _read_tool_cache(config, method, vendor, cache_key)
         if cached_result is not None:
+            _record_data_tool_event(
+                {
+                    "method": method,
+                    "vendor": vendor,
+                    "status": _data_result_status(cached_result),
+                    "cache": "hit_after_lock",
+                    "elapsed_seconds": time.perf_counter() - start,
+                }
+            )
             return cached_result
 
-        result = impl_func(*args, **kwargs)
+        try:
+            result = impl_func(*args, **kwargs)
+        except Exception as exc:
+            _record_data_tool_event(
+                {
+                    "method": method,
+                    "vendor": vendor,
+                    "status": "error",
+                    "cache": "miss",
+                    "elapsed_seconds": time.perf_counter() - start,
+                    "error_type": type(exc).__name__,
+                }
+            )
+            raise
         _write_tool_cache(config, method, vendor, cache_key, result)
+        _record_data_tool_event(
+            {
+                "method": method,
+                "vendor": vendor,
+                "status": _data_result_status(result),
+                "cache": "miss",
+                "elapsed_seconds": time.perf_counter() - start,
+            }
+        )
         return result
 
 
