@@ -1,9 +1,11 @@
 from typing import Optional
 import datetime
+import json
 import typer
 import questionary
 from pathlib import Path
 from functools import wraps
+from dataclasses import asdict
 from rich.console import Console
 from rich.panel import Panel
 from rich.spinner import Spinner
@@ -22,6 +24,7 @@ from rich.rule import Rule
 
 from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
+from tradingagents.report_quality import check_report_quality
 from cli.models import AnalystType
 from cli.utils import *
 from cli.announcements import fetch_announcements, display_announcements
@@ -34,6 +37,28 @@ app = typer.Typer(
     help="TradingAgents CLI: Multi-Agents LLM Financial Trading Framework",
     add_completion=True,  # Enable shell completion
 )
+
+
+_ARTIFACT_FILES = {
+    "market_facts": "market_facts.json",
+    "fundamental_facts": "fundamental_facts.json",
+    "news_sources": "news_sources.json",
+    "sentiment_facts": "sentiment_facts.json",
+}
+
+
+def _write_json(path: Path, payload) -> None:
+    path.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False, default=str),
+        encoding="utf-8",
+    )
+
+
+def _write_run_artifacts(final_state, save_path: Path) -> None:
+    for state_key, filename in _ARTIFACT_FILES.items():
+        payload = final_state.get(state_key)
+        if payload:
+            _write_json(save_path / filename, payload)
 
 
 # Create a deque to store recent messages with a maximum length
@@ -757,6 +782,10 @@ def save_report_to_disk(final_state, ticker: str, save_path: Path):
     # Write consolidated report
     header = f"# Trading Analysis Report: {ticker}\n\nGenerated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
     (save_path / "complete_report.md").write_text(header + "\n\n".join(sections), encoding="utf-8")
+    _write_run_artifacts(final_state, save_path)
+    claim_checks = [asdict(issue) for issue in check_report_quality(save_path)]
+    final_state["claim_checks"] = claim_checks
+    _write_json(save_path / "claim_checks.json", claim_checks)
     return save_path / "complete_report.md"
 
 

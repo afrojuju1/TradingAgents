@@ -4,7 +4,11 @@ from typing import Annotated
 
 from langchain_core.tools import tool
 
-from tradingagents.dataflows.fundamentals_summary import build_fundamentals_summary
+from tradingagents.agents.utils.artifact_payloads import append_artifact
+from tradingagents.dataflows.fundamentals_summary import (
+    build_fundamentals_summary_payload,
+    render_fundamentals_summary,
+)
 from tradingagents.dataflows.interface import route_to_vendor
 
 
@@ -21,8 +25,13 @@ def get_fundamentals_summary(
     analyst does not need to reconcile raw statement tables.
     """
     fundamentals_text = route_to_vendor("get_fundamentals", ticker, curr_date)
-    return build_fundamentals_summary(
+    payload = build_fundamentals_summary_payload(
         ticker=ticker,
         curr_date=curr_date,
         fundamentals_text=fundamentals_text,
+    )
+    return append_artifact(
+        render_fundamentals_summary(payload),
+        "fundamental_facts",
+        payload,
     )

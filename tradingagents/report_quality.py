@@ -31,6 +31,10 @@ WARNING_PATTERNS = (
     ("fallback_text", re.compile(r"\b(?:falling back|using fallback)\b", re.I)),
 )
 
+MONEY_RE = re.compile(r"\$-?\d+(?:,\d{3})*(?:\.\d+)?\s*[TBMK]?", re.I)
+RSI_RE = re.compile(r"\bRSI\b[^0-9\-+]{0,40}([-+]?\d+(?:\.\d+)?)", re.I)
+MACD_RE = re.compile(r"\bMACD\b[^0-9\-+]{0,40}([-+]?\d+(?:\.\d+)?)", re.I)
+
 
 @dataclass(frozen=True)
 class QualityIssue:
@@ -61,6 +65,16 @@ def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
 
+def _read_json_artifact(report_root: Path, filename: str):
+    path = report_root / filename
+    if not path.exists():
+        return None
+    try:
+        return json.loads(_read_text(path))
+    except json.JSONDecodeError:
+        return None
+
+
 def _has_sec_metadata(report_root: Path) -> bool:
     for metadata_name in ("run_metadata.json", "run_summary.json"):
         metadata_path = report_root / metadata_name
@@ -78,6 +92,11 @@ def _has_sec_metadata(report_root: Path) -> bool:
 
 def _has_sec_source_evidence(report_root: Path, targets: Iterable[Path]) -> bool:
     if _has_sec_metadata(report_root):
+        return True
+    fundamental_facts = _read_json_artifact(report_root, "fundamental_facts.json")
+    if isinstance(fundamental_facts, dict) and "sec edgar" in str(
+        fundamental_facts.get("source", "")
+    ).lower():
         return True
     return any(SEC_SOURCE_MARKER in _read_text(path) for path in targets if path.exists())
 
@@ -147,6 +166,195 @@ def _check_recommendation_leakage(
     return issues
 
 
+def _parse_amount(raw: str) -> float | None:
+    cleaned = raw.strip().replace("$", "").replace(",", "").replace(" ", "")
+    multiplier = 1.0
+    suffix = cleaned[-1:].upper()
+    if suffix in {"T", "B", "M", "K"}:
+        cleaned = cleaned[:-1]
+        multiplier = {"T": 1e12, "B": 1e9, "M": 1e6, "K": 1e3}[suffix]
+    try:
+        return float(cleaned) * multiplier
+    except ValueError:
+        return None
+
+
+def _close_enough(value: float, allowed: Iterable[float], *, pct_tolerance: float = 0.01) -> bool:
+    for candidate in allowed:
+        tolerance = max(0.05, abs(candidate) * pct_tolerance)
+        if abs(value - candidate) <= tolerance:
+            return True
+    return False
+
+
+def _market_allowed_values(market_facts: dict) -> list[float]:
+    values: list[float] = []
+    price = market_facts.get("price", {}) if isinstance(market_facts, dict) else {}
+    for key in (
+        "latest_close",
+        "latest_open",
+        "latest_high",
+        "latest_low",
+        "first_close",
+        "window_low",
+        "window_high",
+        "recent_support_low",
+        "recent_resistance_high",
+    ):
+        value = price.get(key)
+        if isinstance(value, (int, float)):
+            values.append(float(value))
+    indicators = market_facts.get("indicators", {}) if isinstance(market_facts, dict) else {}
+    for key in ("close_50_sma", "close_200_sma"):
+        value = (indicators.get(key) or {}).get("value")
+        if isinstance(value, (int, float)):
+            values.append(float(value))
+    return values
+
+
+def _check_market_against_facts(
+    market_path: Path,
+    text: str,
+    root: Path,
+    market_facts: dict | None,
+) -> list[QualityIssue]:
+    if not market_facts:
+        return []
+    issues: list[QualityIssue] = []
+    allowed_prices = _market_allowed_values(market_facts)
+
+    for match in MONEY_RE.finditer(text):
+        value = _parse_amount(match.group(0))
+        if value is None:
+            continue
+        # Market reports should not introduce market-cap scale values; their
+        # dollar figures are prices or moving averages from the market fact pack.
+        if value > 10_000_000:
+            issues.append(
+                QualityIssue(
+                    "error",
+                    "unsupported_market_money",
+                    f"{_display_path(market_path, root)}:{_line_number(text, match.start())}",
+                    f"market report contains unsupported market dollar value {match.group(0)}",
+                )
+            )
+        elif allowed_prices and not _close_enough(value, allowed_prices, pct_tolerance=0.005):
+            issues.append(
+                QualityIssue(
+                    "error",
+                    "market_value_mismatch",
+                    f"{_display_path(market_path, root)}:{_line_number(text, match.start())}",
+                    f"market dollar value {match.group(0)} is not supported by market_facts.json",
+                )
+            )
+
+    indicators = market_facts.get("indicators", {})
+    expected_rsi = (indicators.get("rsi") or {}).get("value")
+    if isinstance(expected_rsi, (int, float)):
+        for match in RSI_RE.finditer(text):
+            value = float(match.group(1))
+            if abs(value - float(expected_rsi)) > 1.0:
+                issues.append(
+                    QualityIssue(
+                        "error",
+                        "rsi_mismatch",
+                        f"{_display_path(market_path, root)}:{_line_number(text, match.start())}",
+                        f"RSI value {value:g} does not match deterministic RSI {float(expected_rsi):.2f}",
+                    )
+                )
+
+    expected_macd = (indicators.get("macd") or {}).get("value")
+    if isinstance(expected_macd, (int, float)):
+        for match in MACD_RE.finditer(text):
+            value = float(match.group(1))
+            if abs(value - float(expected_macd)) > 0.25:
+                issues.append(
+                    QualityIssue(
+                        "error",
+                        "macd_mismatch",
+                        f"{_display_path(market_path, root)}:{_line_number(text, match.start())}",
+                        f"MACD value {value:g} does not match deterministic MACD {float(expected_macd):.2f}",
+                    )
+                )
+
+    return issues
+
+
+def _fundamental_allowed_values(fundamental_facts: dict) -> list[float]:
+    values: list[float] = []
+    facts = fundamental_facts.get("facts", {}) if isinstance(fundamental_facts, dict) else {}
+    for fact in facts.values():
+        value = fact.get("numeric_value") if isinstance(fact, dict) else None
+        if isinstance(value, (int, float)):
+            values.append(float(value))
+    relationships = fundamental_facts.get("relationships", {})
+    relationship_value = relationships.get("assets_minus_liabilities")
+    if isinstance(relationship_value, (int, float)):
+        values.append(abs(float(relationship_value)))
+    return values
+
+
+def _check_fundamentals_against_facts(
+    fundamentals_path: Path,
+    text: str,
+    root: Path,
+    fundamental_facts: dict | None,
+) -> list[QualityIssue]:
+    if not fundamental_facts:
+        return []
+    issues: list[QualityIssue] = []
+    relationships = fundamental_facts.get("relationships", {})
+    if relationships.get("assets_greater_than_liabilities") is True:
+        mismatch = re.search(
+            r"\b(?:total\s+)?liabilities\s+exceed(?:s|ed)?\s+(?:total\s+)?assets\b",
+            text,
+            re.I,
+        )
+        if mismatch:
+            issues.append(
+                QualityIssue(
+                    "error",
+                    "asset_liability_contradiction",
+                    f"{_display_path(fundamentals_path, root)}:{_line_number(text, mismatch.start())}",
+                    "fundamentals report says liabilities exceed assets, but fundamental_facts.json says assets exceed liabilities",
+                )
+            )
+
+    context = (fundamental_facts.get("accounting_context") or {}).get("classification")
+    if context == "bank_or_financial":
+        bad_ocf = re.search(
+            r"operating cash flow.{0,140}\b(distress|aggressive accounting|cash burn|red flag)\b",
+            text,
+            re.I | re.S,
+        )
+        if bad_ocf:
+            issues.append(
+                QualityIssue(
+                    "error",
+                    "bank_cashflow_misread",
+                    f"{_display_path(fundamentals_path, root)}:{_line_number(text, bad_ocf.start())}",
+                    "bank/financial report treats operating cash flow as standalone distress/aggressive-accounting evidence",
+                )
+            )
+
+    allowed = _fundamental_allowed_values(fundamental_facts)
+    for match in MONEY_RE.finditer(text):
+        value = _parse_amount(match.group(0))
+        if value is None:
+            continue
+        if allowed and not _close_enough(value, allowed, pct_tolerance=0.015):
+            issues.append(
+                QualityIssue(
+                    "warning",
+                    "fundamental_value_unverified",
+                    f"{_display_path(fundamentals_path, root)}:{_line_number(text, match.start())}",
+                    f"fundamentals dollar value {match.group(0)} is not present in fundamental_facts.json",
+                )
+            )
+
+    return issues
+
+
 def check_report_quality(
     report_path: str | Path,
     *,
@@ -190,6 +398,9 @@ def check_report_quality(
         )
         return issues
 
+    market_facts = _read_json_artifact(report_root, "market_facts.json")
+    fundamental_facts = _read_json_artifact(report_root, "fundamental_facts.json")
+
     for path in markdown_files:
         text = _read_text(path)
         issues.extend(_check_forbidden_years(path, text, report_root, forbidden_years))
@@ -213,6 +424,18 @@ def check_report_quality(
         )
 
     fundamentals_path = report_root / "1_analysts" / "fundamentals.md"
+    market_path = report_root / "1_analysts" / "market.md"
+    if market_path.exists():
+        market_text = _read_text(market_path)
+        issues.extend(
+            _check_market_against_facts(
+                market_path,
+                market_text,
+                report_root,
+                market_facts,
+            )
+        )
+
     if fundamentals_path.exists():
         fundamentals_text = _read_text(fundamentals_path)
         issues.extend(
@@ -220,6 +443,14 @@ def check_report_quality(
                 fundamentals_path,
                 fundamentals_text,
                 report_root,
+            )
+        )
+        issues.extend(
+            _check_fundamentals_against_facts(
+                fundamentals_path,
+                fundamentals_text,
+                report_root,
+                fundamental_facts,
             )
         )
     elif root.is_dir():

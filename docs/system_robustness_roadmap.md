@@ -16,6 +16,12 @@ Already landed:
 - Deterministic fundamentals summary tool for SEC-derived balance sheet,
   income, cash flow, leverage, liquidity, bank/financial accounting context,
   and asset/liability relationship checks.
+- First-pass durable fact artifacts: `market_facts.json`,
+  `fundamental_facts.json`, `news_sources.json`, `sentiment_facts.json`, and
+  `claim_checks.json`.
+- First-pass numeric report proof checks for market technicals and
+  fundamentals contradictions.
+- Deterministic news source extraction and sentiment source statistics.
 - Analyst parallelism, tool-result caching, prefetch support, local Ollama
   run profiles, SEC EdgarTools integration, Gluetun support, report quality
   pattern checks, and checkpoint metadata serialization fixes.

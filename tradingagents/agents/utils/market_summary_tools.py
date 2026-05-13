@@ -5,10 +5,12 @@ from typing import Annotated
 
 from langchain_core.tools import tool
 
+from tradingagents.agents.utils.artifact_payloads import append_artifact
 from tradingagents.dataflows.interface import route_to_vendor
 from tradingagents.dataflows.market_summary import (
     DEFAULT_MARKET_INDICATORS,
-    build_market_summary,
+    build_market_summary_payload,
+    render_market_summary,
 )
 
 
@@ -35,9 +37,10 @@ def get_market_summary(
         indicator: route_to_vendor("get_indicators", symbol, indicator, curr_date, 30)
         for indicator in DEFAULT_MARKET_INDICATORS
     }
-    return build_market_summary(
+    payload = build_market_summary_payload(
         symbol=symbol,
         curr_date=curr_date,
         stock_data_text=stock_data_text,
         indicator_texts=indicator_texts,
     )
+    return append_artifact(render_market_summary(payload), "market_facts", payload)

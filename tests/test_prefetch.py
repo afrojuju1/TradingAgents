@@ -24,7 +24,7 @@ def test_build_prefetch_tasks_for_full_analyst_set():
     assert "get_income_statement" not in methods
     assert "get_news" in methods
     assert "get_global_news" in methods
-    assert "get_insider_transactions" in methods
+    assert "get_insider_transactions" not in methods
 
 
 def test_prefetch_skips_when_cache_disabled(monkeypatch):

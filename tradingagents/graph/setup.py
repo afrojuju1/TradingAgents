@@ -56,6 +56,11 @@ def _run_single_analyst_loop(
         "sentiment_report": "",
         "news_report": "",
         "fundamentals_report": "",
+        "market_facts": {},
+        "fundamental_facts": {},
+        "news_sources": {},
+        "sentiment_facts": {},
+        "claim_checks": [],
     }
 
     for _ in range(max_tool_iterations):
@@ -69,7 +74,16 @@ def _run_single_analyst_loop(
                 analyst_type,
                 perf_counter() - start,
             )
-            return {report_field: state.get(report_field, "")}
+            result = {report_field: state.get(report_field, "")}
+            for artifact_key in (
+                "market_facts",
+                "fundamental_facts",
+                "news_sources",
+                "sentiment_facts",
+            ):
+                if state.get(artifact_key):
+                    result[artifact_key] = state[artifact_key]
+            return result
 
         tool_names = [
             call.get("name") if isinstance(call, dict) else getattr(call, "name", None)

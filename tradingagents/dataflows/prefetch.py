@@ -61,19 +61,16 @@ def build_prefetch_tasks(
         tasks.append(PrefetchTask("get_news", (ticker, start_date, end_date), {}))
 
     if "news" in selected:
-        tasks.extend(
-            [
-                PrefetchTask(
-                    "get_global_news",
-                    (
-                        trade_date,
-                        config.get("global_news_lookback_days"),
-                        config.get("global_news_article_limit"),
-                    ),
-                    {},
+        tasks.append(
+            PrefetchTask(
+                "get_global_news",
+                (
+                    trade_date,
+                    config.get("global_news_lookback_days"),
+                    config.get("global_news_article_limit"),
                 ),
-                PrefetchTask("get_insider_transactions", (ticker,), {}),
-            ]
+                {},
+            )
         )
 
     return tasks

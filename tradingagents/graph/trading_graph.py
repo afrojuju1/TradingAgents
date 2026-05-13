@@ -32,8 +32,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_market_summary,
     get_fundamentals_summary,
     get_news,
-    get_insider_transactions,
-    get_global_news
+    get_news_summary,
 )
 
 from .checkpointer import checkpoint_step, clear_checkpoint, get_checkpointer, thread_id
@@ -183,10 +182,8 @@ class TradingAgentsGraph:
             ),
             "news": ToolNode(
                 [
-                    # News and insider information
-                    get_news,
-                    get_global_news,
-                    get_insider_transactions,
+                    # Deterministic company and macro news source summary
+                    get_news_summary,
                 ]
             ),
             "fundamentals": ToolNode(
@@ -412,6 +409,11 @@ class TradingAgentsGraph:
             "sentiment_report": final_state["sentiment_report"],
             "news_report": final_state["news_report"],
             "fundamentals_report": final_state["fundamentals_report"],
+            "market_facts": final_state.get("market_facts", {}),
+            "fundamental_facts": final_state.get("fundamental_facts", {}),
+            "news_sources": final_state.get("news_sources", {}),
+            "sentiment_facts": final_state.get("sentiment_facts", {}),
+            "claim_checks": final_state.get("claim_checks", []),
             "investment_debate_state": {
                 "bull_history": final_state["investment_debate_state"]["bull_history"],
                 "bear_history": final_state["investment_debate_state"]["bear_history"],

@@ -28,6 +28,10 @@ from tradingagents.agents.utils.agent_utils import (
     get_news,
 )
 from tradingagents.dataflows.reddit import fetch_reddit_posts
+from tradingagents.dataflows.sentiment_summary import (
+    build_sentiment_summary_payload,
+    render_sentiment_summary,
+)
 from tradingagents.dataflows.stocktwits import fetch_stocktwits_messages
 
 
@@ -55,11 +59,20 @@ def create_sentiment_analyst(llm):
         news_block = get_news.func(ticker, start_date, end_date)
         stocktwits_block = fetch_stocktwits_messages(ticker, limit=30)
         reddit_block = fetch_reddit_posts(ticker)
+        sentiment_facts = build_sentiment_summary_payload(
+            ticker=ticker,
+            start_date=start_date,
+            end_date=end_date,
+            news_block=news_block,
+            stocktwits_block=stocktwits_block,
+            reddit_block=reddit_block,
+        )
 
         system_message = _build_system_message(
             ticker=ticker,
             start_date=start_date,
             end_date=end_date,
+            sentiment_summary=render_sentiment_summary(sentiment_facts),
             news_block=news_block,
             stocktwits_block=stocktwits_block,
             reddit_block=reddit_block,
@@ -90,6 +103,7 @@ def create_sentiment_analyst(llm):
         return {
             "messages": [result],
             "sentiment_report": result.content,
+            "sentiment_facts": sentiment_facts,
         }
 
     return sentiment_analyst_node
@@ -100,6 +114,7 @@ def _build_system_message(
     ticker: str,
     start_date: str,
     end_date: str,
+    sentiment_summary: str,
     news_block: str,
     stocktwits_block: str,
     reddit_block: str,
@@ -108,6 +123,13 @@ def _build_system_message(
     return f"""You are a financial market sentiment analyst. Your task is to produce a comprehensive sentiment report for {ticker} covering the period from {start_date} to {end_date}, drawing on three complementary data sources that have already been collected for you.
 
 ## Data sources (pre-fetched, in this prompt)
+
+### Deterministic source statistics
+Use these counts exactly when describing sample size, ratios, source volume, and data limits.
+
+<start_of_sentiment_facts>
+{sentiment_summary}
+<end_of_sentiment_facts>
 
 ### News headlines — Yahoo Finance, past 7 days
 Institutional framing. Fact-driven, slower-moving signal.

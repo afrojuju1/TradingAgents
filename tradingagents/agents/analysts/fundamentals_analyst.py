@@ -1,4 +1,5 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from tradingagents.agents.utils.artifact_payloads import extract_artifact_from_messages
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
     get_fundamentals_summary,
@@ -88,13 +89,19 @@ def create_fundamentals_analyst(llm):
         result = chain.invoke(state["messages"])
 
         report = ""
+        fundamental_facts = state.get("fundamental_facts", {})
 
         if len(result.tool_calls) == 0:
             report = _strip_portfolio_recommendations(result.content)
+            fundamental_facts = extract_artifact_from_messages(
+                state.get("messages", []),
+                "fundamental_facts",
+            ) or fundamental_facts
 
         return {
             "messages": [result],
             "fundamentals_report": report,
+            "fundamental_facts": fundamental_facts,
         }
 
     return fundamentals_analyst_node

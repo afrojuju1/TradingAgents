@@ -92,6 +92,8 @@ def get_news_yfinance(
                     continue
 
             news_str += f"### {data['title']} (source: {data['publisher']})\n"
+            if data["pub_date"]:
+                news_str += f"Published: {data['pub_date'].date().isoformat()}\n"
             if data["summary"]:
                 news_str += f"{data['summary']}\n"
             if data["link"]:
@@ -171,12 +173,14 @@ def get_global_news_yfinance(
 
         news_str = ""
         for article in all_news[:limit]:
+            pub_date = None
             # Handle both flat and nested structures
             if "content" in article:
                 data = _extract_article_data(article)
+                pub_date = data.get("pub_date")
                 # Skip articles published after curr_date (look-ahead guard)
-                if data.get("pub_date"):
-                    pub_naive = data["pub_date"].replace(tzinfo=None) if hasattr(data["pub_date"], "replace") else data["pub_date"]
+                if pub_date:
+                    pub_naive = pub_date.replace(tzinfo=None) if hasattr(pub_date, "replace") else pub_date
                     if pub_naive > curr_dt + relativedelta(days=1):
                         continue
                 title = data["title"]
@@ -190,6 +194,8 @@ def get_global_news_yfinance(
                 summary = ""
 
             news_str += f"### {title} (source: {publisher})\n"
+            if pub_date:
+                news_str += f"Published: {pub_date.date().isoformat()}\n"
             if summary:
                 news_str += f"{summary}\n"
             if link:

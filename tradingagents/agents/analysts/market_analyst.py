@@ -1,4 +1,5 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from tradingagents.agents.utils.artifact_payloads import extract_artifact_from_messages
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
     get_language_instruction,
@@ -52,13 +53,19 @@ Write a concise but nuanced market report that separates trend, momentum, volati
         result = chain.invoke(state["messages"])
 
         report = ""
+        market_facts = state.get("market_facts", {})
 
         if len(result.tool_calls) == 0:
             report = result.content
+            market_facts = extract_artifact_from_messages(
+                state.get("messages", []),
+                "market_facts",
+            ) or market_facts
 
         return {
             "messages": [result],
             "market_report": report,
+            "market_facts": market_facts,
         }
 
     return market_analyst_node

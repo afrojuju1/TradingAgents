@@ -1,11 +1,10 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from tradingagents.agents.utils.artifact_payloads import extract_artifact_from_messages
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
-    get_global_news,
     get_language_instruction,
-    get_news,
+    get_news_summary,
 )
-from tradingagents.dataflows.config import get_config
 
 
 def create_news_analyst(llm):
@@ -14,12 +13,11 @@ def create_news_analyst(llm):
         instrument_context = build_instrument_context(state["company_of_interest"])
 
         tools = [
-            get_news,
-            get_global_news,
+            get_news_summary,
         ]
 
         system_message = (
-            "You are a news researcher tasked with analyzing recent news and trends over the past week. Please write a comprehensive report of the current state of the world that is relevant for trading and macroeconomics. Use the available tools: get_news(query, start_date, end_date) for company-specific or targeted news searches, and get_global_news(curr_date, look_back_days, limit) for broader macroeconomic news. Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
+            "You are a news researcher tasked with analyzing recent company and macro news. Call get_news_summary exactly once for the instrument and current date before writing your report. The tool returns deterministic source records with source IDs, publishers, URLs, summaries, and relevance scores. Cite source IDs for every material news claim, and do not introduce CPI, Fed, oil, dividend, AUM, market-cap, or price-target numbers unless they appear in the tool result."
             + """ Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."""
             + " Your role is analysis only; do not make the final BUY/HOLD/SELL portfolio decision."
             + get_language_instruction()
@@ -49,13 +47,19 @@ def create_news_analyst(llm):
         result = chain.invoke(state["messages"])
 
         report = ""
+        news_sources = state.get("news_sources", {})
 
         if len(result.tool_calls) == 0:
             report = result.content
+            news_sources = extract_artifact_from_messages(
+                state.get("messages", []),
+                "news_sources",
+            ) or news_sources
 
         return {
             "messages": [result],
             "news_report": report,
+            "news_sources": news_sources,
         }
 
     return news_analyst_node
