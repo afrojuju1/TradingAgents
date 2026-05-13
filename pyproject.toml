@@ -55,7 +55,7 @@ filterwarnings = [
 ]
 
 [tool.uv.sources]
-edgartools = { path = "../edgartools", editable = true }
+edgartools = { git = "https://github.com/afrojuju1/edgartools.git", rev = "15a2f4777bb3c83bb310f096618da3cbf8de6226" }
 
 [dependency-groups]
 dev = [
