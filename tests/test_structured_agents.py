@@ -21,6 +21,10 @@ from tradingagents.agents.schemas import (
     render_trader_proposal,
 )
 from tradingagents.agents.trader.trader import create_trader
+from tradingagents.agents.utils.structured import (
+    bind_structured,
+    invoke_structured_or_freetext,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -117,8 +121,26 @@ def _structured_trader_llm(captured: dict, proposal: TraderProposal | None = Non
     return llm
 
 
+def _raw_tool_message(args):
+    raw = MagicMock()
+    raw.tool_calls = [{"name": "TraderProposal", "args": args}]
+    raw.additional_kwargs = {}
+    raw.content = ""
+    return raw
+
+
 @pytest.mark.unit
 class TestTraderAgent:
+    def test_bind_structured_requests_raw_recovery(self):
+        structured = MagicMock()
+        llm = MagicMock()
+        llm.with_structured_output.return_value = structured
+        assert bind_structured(llm, TraderProposal, "Trader") is structured
+        llm.with_structured_output.assert_called_once_with(
+            TraderProposal,
+            include_raw=True,
+        )
+
     def test_structured_path_produces_rendered_markdown(self):
         captured = {}
         proposal = TraderProposal(
@@ -158,6 +180,55 @@ class TestTraderAgent:
         trader = create_trader(llm)
         result = trader(_make_trader_state())
         assert result["trader_investment_plan"] == plain_response
+
+    def test_recovers_ollama_enum_wrapper_from_raw_tool_args(self):
+        structured = MagicMock()
+        structured.invoke.return_value = {
+            "raw": _raw_tool_message({
+                "action": {"type": "Buy"},
+                "reasoning": "Strong setup.",
+                "entry_price": {"value": "189.50"},
+                "stop_loss": "$178.00",
+            }),
+            "parsed": None,
+            "parsing_error": ValueError("enum wrapper rejected"),
+        }
+        plain = MagicMock()
+
+        md = invoke_structured_or_freetext(
+            structured,
+            plain,
+            "prompt",
+            TraderProposal,
+            render_trader_proposal,
+            "Trader",
+        )
+
+        assert "**Action**: Buy" in md
+        assert "**Entry Price**: 189.5" in md
+        assert "**Stop Loss**: 178.0" in md
+        plain.invoke.assert_not_called()
+
+    def test_falls_back_when_include_raw_has_no_recoverable_payload(self):
+        structured = MagicMock()
+        structured.invoke.return_value = {
+            "raw": None,
+            "parsed": None,
+            "parsing_error": ValueError("malformed"),
+        }
+        plain = MagicMock()
+        plain.invoke.return_value = MagicMock(content="plain response")
+
+        result = invoke_structured_or_freetext(
+            structured,
+            plain,
+            "prompt",
+            TraderProposal,
+            render_trader_proposal,
+            "Trader",
+        )
+
+        assert result == "plain response"
 
 
 # ---------------------------------------------------------------------------
@@ -230,3 +301,31 @@ class TestResearchManagerAgent:
         rm = create_research_manager(llm)
         result = rm(_make_rm_state())
         assert result["investment_plan"] == plain_response
+
+    def test_recovers_wrapped_parsed_payload_and_enum_name(self):
+        structured = MagicMock()
+        structured.invoke.return_value = {
+            "raw": None,
+            "parsed": {
+                "ResearchPlan": {
+                    "recommendation": {"value": "OVERWEIGHT"},
+                    "rationale": "Bull case carried.",
+                    "strategic_actions": "Build gradually.",
+                }
+            },
+            "parsing_error": None,
+        }
+        plain = MagicMock()
+
+        md = invoke_structured_or_freetext(
+            structured,
+            plain,
+            "prompt",
+            ResearchPlan,
+            render_research_plan,
+            "Research Manager",
+        )
+
+        assert "**Recommendation**: Overweight" in md
+        assert "**Rationale**: Bull case carried." in md
+        plain.invoke.assert_not_called()

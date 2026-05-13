@@ -72,6 +72,7 @@ Be decisive and ground every conclusion in specific evidence from the determinis
             structured_llm,
             llm,
             prompt,
+            PortfolioDecision,
             render_pm_decision,
             "Portfolio Manager",
         )
