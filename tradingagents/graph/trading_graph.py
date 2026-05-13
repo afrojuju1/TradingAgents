@@ -52,7 +52,7 @@ class TradingAgentsGraph:
 
     def __init__(
         self,
-        selected_analysts=["market", "social", "news", "fundamentals"],
+        selected_analysts=None,
         debug=False,
         config: Dict[str, Any] = None,
         callbacks: Optional[List] = None,
@@ -68,6 +68,11 @@ class TradingAgentsGraph:
         self.debug = debug
         self.config = config or DEFAULT_CONFIG
         self.callbacks = callbacks or []
+        if selected_analysts is None:
+            selected_analysts = self.config.get(
+                "selected_analysts",
+                ["market", "social", "news", "fundamentals"],
+            )
 
         # Update the interface's config
         set_config(self.config)

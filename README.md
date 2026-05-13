@@ -225,6 +225,18 @@ print(decision)
 
 See `tradingagents/default_config.py` for all configuration options.
 
+### Local Ollama run profiles
+
+For local Ollama runs, `TRADINGAGENTS_RUN_PROFILE` can apply a preset before
+other `TRADINGAGENTS_*` env vars are overlaid:
+
+- `fast`: `qwen3:8b` for quick and deep tasks, market plus fundamentals analysts.
+- `balanced`: `qwen3:8b` quick model, `glm-4.7-flash:latest` deep model, all analysts.
+- `quality`: `qwen3:8b` quick model, `qwen3.6:35b` deep model, all analysts.
+
+Each profile enables analyst parallelism and data tool caching. Specific env
+vars such as `TRADINGAGENTS_DEEP_THINK_LLM` still override the profile.
+
 ## Persistence and Recovery
 
 TradingAgents persists two kinds of state across runs.

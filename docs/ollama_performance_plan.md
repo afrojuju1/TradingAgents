@@ -32,6 +32,8 @@ serialization fix is handled separately.
   `OLLAMA_NUM_PARALLEL=2` setting.
 - The local `.env` can opt into vendor tool-result caching with
   `TRADINGAGENTS_DATA_TOOL_CACHE_ENABLED=true`.
+- `TRADINGAGENTS_RUN_PROFILE=fast|balanced|quality` applies the local Ollama
+  presets described below. Specific model env vars still override the profile.
 
 ## Backlog
 
@@ -54,20 +56,23 @@ serialization fix is handled separately.
    - Implemented as an opt-in vendor tool-result cache keyed by method,
      vendor, args, and kwargs, with per-key locking for concurrent analysts.
 
-4. Add a fast run profile.
+4. [Done] Add a fast run profile.
    - Quick and deep model both set to `qwen3:8b`.
    - Analysts reduced to market plus fundamentals by default.
-   - Shorter report instructions and lower max output tokens.
+   - Prompt/report trimming remains tracked separately below.
+   - Implemented as `TRADINGAGENTS_RUN_PROFILE=fast`.
 
-5. Add a balanced run profile.
+5. [Done] Add a balanced run profile.
    - Quick model `qwen3:8b`.
    - Deep model `glm-4.7-flash:latest`.
    - All analysts enabled, one debate round, one risk round.
+   - Implemented as `TRADINGAGENTS_RUN_PROFILE=balanced`.
 
-6. Add a quality run profile.
+6. [Done] Add a quality run profile.
    - Quick model `qwen3:8b`.
    - Deep model `qwen3.6:35b`.
    - Accept model reload cost for final research and portfolio quality.
+   - Implemented as `TRADINGAGENTS_RUN_PROFILE=quality`.
 
 7. Trim prompt and report size.
    - Remove repeated generic instructions across agents.

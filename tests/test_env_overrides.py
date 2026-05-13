@@ -13,6 +13,7 @@ def _reload_with_env(monkeypatch, **overrides):
     """Set/clear env vars then reload default_config to re-evaluate DEFAULT_CONFIG."""
     for key in list(default_config_module._ENV_OVERRIDES):
         monkeypatch.delenv(key, raising=False)
+    monkeypatch.delenv("TRADINGAGENTS_RUN_PROFILE", raising=False)
     for key, val in overrides.items():
         monkeypatch.setenv(key, val)
     return importlib.reload(default_config_module)
@@ -23,6 +24,13 @@ def test_no_env_uses_built_in_defaults(monkeypatch):
     assert dc.DEFAULT_CONFIG["llm_provider"] == "openai"
     assert dc.DEFAULT_CONFIG["deep_think_llm"] == "gpt-5.4"
     assert dc.DEFAULT_CONFIG["quick_think_llm"] == "gpt-5.4-mini"
+    assert dc.DEFAULT_CONFIG["run_profile"] is None
+    assert dc.DEFAULT_CONFIG["selected_analysts"] == [
+        "market",
+        "social",
+        "news",
+        "fundamentals",
+    ]
     assert dc.DEFAULT_CONFIG["backend_url"] is None
     assert dc.DEFAULT_CONFIG["max_debate_rounds"] == 1
     assert dc.DEFAULT_CONFIG["checkpoint_enabled"] is False
@@ -113,3 +121,28 @@ def test_unknown_env_var_is_ignored(monkeypatch):
         TRADINGAGENTS_NONEXISTENT_KEY="oops",
     )
     assert "nonexistent_key" not in dc.DEFAULT_CONFIG
+
+
+def test_run_profile_applies_before_specific_env_overrides(monkeypatch):
+    dc = _reload_with_env(
+        monkeypatch,
+        TRADINGAGENTS_RUN_PROFILE="fast",
+        TRADINGAGENTS_DEEP_THINK_LLM="custom-deep",
+    )
+
+    assert dc.DEFAULT_CONFIG["run_profile"] == "fast"
+    assert dc.DEFAULT_CONFIG["llm_provider"] == "ollama"
+    assert dc.DEFAULT_CONFIG["quick_think_llm"] == "qwen3:8b"
+    assert dc.DEFAULT_CONFIG["deep_think_llm"] == "custom-deep"
+    assert dc.DEFAULT_CONFIG["selected_analysts"] == ["market", "fundamentals"]
+    assert dc.DEFAULT_CONFIG["parallel_analysts"] is True
+    assert dc.DEFAULT_CONFIG["data_tool_cache_enabled"] is True
+
+
+def test_invalid_run_profile_raises(monkeypatch):
+    monkeypatch.setenv("TRADINGAGENTS_RUN_PROFILE", "turbo")
+    with pytest.raises(ValueError, match="Unknown TRADINGAGENTS_RUN_PROFILE"):
+        importlib.reload(default_config_module)
+
+    monkeypatch.delenv("TRADINGAGENTS_RUN_PROFILE", raising=False)
+    importlib.reload(default_config_module)
