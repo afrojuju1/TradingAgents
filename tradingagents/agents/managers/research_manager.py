@@ -8,6 +8,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_language_instruction,
 )
 from tradingagents.agents.utils.grounding import build_grounding_context
+from tradingagents.agents.utils.report_budget import get_report_budget_instruction
 from tradingagents.agents.utils.structured import (
     bind_structured,
     invoke_structured_or_freetext,
@@ -40,6 +41,7 @@ def create_research_manager(llm):
 - **Sell**: Strong conviction in the bear thesis; recommend exiting or avoiding the position
 
 Commit to a clear stance whenever the debate's strongest arguments warrant one; reserve Hold for situations where the evidence on both sides is genuinely balanced. Treat uncited numbers in the debate as unsupported and do not repeat them.
+{get_report_budget_instruction("manager")}
 
 ---
 

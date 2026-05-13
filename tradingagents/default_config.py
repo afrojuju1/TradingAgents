@@ -112,6 +112,7 @@ DEFAULT_CONFIG = _apply_env_overrides(apply_run_profile({
     "max_debate_rounds": 1,
     "max_risk_discuss_rounds": 1,
     "max_recur_limit": 100,
+    "report_budgets": {},
     # News / data fetching parameters
     # Increase for longer lookback strategies or to broaden macro coverage;
     # decrease to reduce token usage in agent prompts.

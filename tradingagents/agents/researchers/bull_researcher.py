@@ -1,5 +1,6 @@
 from tradingagents.agents.utils.agent_utils import get_language_instruction
 from tradingagents.agents.utils.grounding import build_grounding_context
+from tradingagents.agents.utils.report_budget import get_report_budget_instruction
 
 
 def create_bull_researcher(llm):
@@ -34,6 +35,7 @@ Company fundamentals report: {fundamentals_report}
 Conversation history of the debate: {history}
 Last bear argument: {current_response}
 Use this information to deliver a compelling bull argument, refute the bear's concerns, and engage in a dynamic debate that demonstrates the strengths of the bull position. Do not introduce new numeric claims beyond the deterministic fact pack and cited source IDs.
+{get_report_budget_instruction("debate")}
 """ + get_language_instruction()
 
         response = llm.invoke(prompt)

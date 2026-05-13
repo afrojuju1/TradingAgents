@@ -16,6 +16,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_language_instruction,
 )
 from tradingagents.agents.utils.grounding import build_grounding_context
+from tradingagents.agents.utils.report_budget import get_report_budget_instruction
 from tradingagents.agents.utils.structured import (
     bind_structured,
     invoke_structured_or_freetext,
@@ -65,7 +66,7 @@ def create_portfolio_manager(llm):
 
 ---
 
-Be decisive and ground every conclusion in specific evidence from the deterministic fact pack and analysts. Treat uncited numbers in prior debate as unsupported and do not repeat them.{get_language_instruction()}"""
+Be decisive and ground every conclusion in specific evidence from the deterministic fact pack and analysts. Treat uncited numbers in prior debate as unsupported and do not repeat them.{get_report_budget_instruction("portfolio")}{get_language_instruction()}"""
 
         final_trade_decision = invoke_structured_or_freetext(
             structured_llm,

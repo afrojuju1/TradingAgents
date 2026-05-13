@@ -7,6 +7,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_language_instruction,
     get_valuation_summary,
 )
+from tradingagents.agents.utils.report_budget import get_report_budget_instruction
 
 
 def _strip_portfolio_recommendations(report: str) -> str:
@@ -78,6 +79,7 @@ def create_fundamentals_analyst(llm):
             + " Preserve the summary's accounting context. For banks and financial companies, do not treat negative operating cash flow as standalone distress, do not benchmark debt-to-equity or current-ratio style metrics like industrial companies, and do not claim liabilities exceed assets when the deterministic summary says assets exceed liabilities."
             + " Keep valuation and event fields separate; cite market cap, enterprise value, P/E, dividend yield, and calendar dates only when the valuation or event summaries provide them. Do not invent AUM, price targets, peer medians, buyback yield, or macro numbers."
             + " Your role is analysis only; do not make the final BUY/HOLD/SELL portfolio decision, and do not include a recommendation to buy, hold, add, reduce, or sell."
+            + get_report_budget_instruction("analyst")
             + f"\n\nDeterministic fundamentals summary:\n{fundamentals_summary}"
             + f"\n\nDeterministic valuation summary:\n{valuation_summary}"
             + f"\n\nDeterministic event calendar summary:\n{event_summary}"

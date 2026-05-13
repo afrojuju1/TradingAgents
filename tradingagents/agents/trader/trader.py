@@ -12,6 +12,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_language_instruction,
 )
 from tradingagents.agents.utils.grounding import build_grounding_context
+from tradingagents.agents.utils.report_budget import get_report_budget_instruction
 from tradingagents.agents.utils.structured import (
     bind_structured,
     invoke_structured_or_freetext,
@@ -35,6 +36,7 @@ def create_trader(llm):
                     "Based on your analysis, provide a specific recommendation to buy, sell, or hold. "
                     "Anchor your reasoning in the deterministic fact pack, analysts' reports, and the research plan. "
                     "Do not introduce new numeric claims beyond the fact pack and cited source IDs."
+                    + get_report_budget_instruction("trader")
                     + get_language_instruction()
                 ),
             },

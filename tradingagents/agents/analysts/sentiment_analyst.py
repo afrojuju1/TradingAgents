@@ -33,6 +33,7 @@ from tradingagents.dataflows.sentiment_summary import (
     render_sentiment_summary,
 )
 from tradingagents.dataflows.stocktwits import fetch_stocktwits_messages
+from tradingagents.agents.utils.report_budget import get_report_budget_instruction
 
 
 def _seven_days_back(trade_date: str) -> str:
@@ -179,6 +180,8 @@ Produce a sentiment report covering, in order:
 3. **Divergences, alignments, and key narratives** across sources.
 4. **Catalysts and risks** surfaced by the data.
 5. **Markdown table** at the end summarizing key sentiment signals, their direction, source, and supporting evidence.
+
+{get_report_budget_instruction("analyst")}
 
 {get_language_instruction()}"""
 

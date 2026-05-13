@@ -5,6 +5,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_language_instruction,
     get_market_summary,
 )
+from tradingagents.agents.utils.report_budget import get_report_budget_instruction
 
 
 def create_market_analyst(llm):
@@ -27,6 +28,7 @@ Use those numeric values exactly when citing technical evidence. Do not quote a 
 Write a concise but nuanced market report that separates trend, momentum, volatility, support/resistance, and technical risk."""
             + """ Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."""
             + " Your role is analysis only; do not make the final BUY/HOLD/SELL portfolio decision."
+            + get_report_budget_instruction("analyst")
             + f"\n\nDeterministic market summary:\n{market_summary}"
             + get_language_instruction()
         )
