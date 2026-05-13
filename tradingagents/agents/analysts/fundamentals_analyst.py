@@ -77,7 +77,7 @@ def create_fundamentals_analyst(llm):
             + " Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."
             + " For SEC-derived values, cite the period end, filing date, form type, accession, and source concept when the summary provides them."
             + " Preserve the summary's accounting context. For banks and financial companies, do not treat negative operating cash flow as standalone distress, do not benchmark debt-to-equity or current-ratio style metrics like industrial companies, and do not claim liabilities exceed assets when the deterministic summary says assets exceed liabilities."
-            + " Keep valuation and event fields separate; cite market cap, enterprise value, P/E, dividend yield, and calendar dates only when the valuation or event summaries provide them. Do not invent AUM, price targets, peer medians, buyback yield, or macro numbers."
+            + " Keep valuation and event fields separate; cite market cap, enterprise value, P/E, dividend yield, and calendar dates only when the valuation or event summaries provide them. Do not invent AUM, price targets, unavailable peer benchmarks, buyback yield, or macro numbers."
             + " Your role is analysis only; do not make the final BUY/HOLD/SELL portfolio decision, and do not include a recommendation to buy, hold, add, reduce, or sell."
             + get_report_budget_instruction("analyst")
             + f"\n\nDeterministic fundamentals summary:\n{fundamentals_summary}"

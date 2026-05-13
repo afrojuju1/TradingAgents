@@ -231,6 +231,20 @@ def _jpm_bank_debt_facts():
     )
 
 
+def _missing_liabilities_facts():
+    return FakeFacts(
+        [
+            _row("Assets", 104_220_000_000, "2026-04-03", filing_date="2026-04-30"),
+            _row(
+                "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+                35_730_000_000,
+                "2026-04-03",
+                filing_date="2026-04-30",
+            ),
+        ]
+    )
+
+
 def test_edgar_balance_sheet_derives_current_period_debt(monkeypatch):
     facts = _oxy_facts()
     monkeypatch.setattr(edgar_fundamentals, "_load_company_facts", lambda ticker: facts)
@@ -275,6 +289,20 @@ def test_edgar_balance_sheet_uses_combined_long_term_debt_for_banks(monkeypatch)
     assert "Net debt | $204.67B" in report
     assert "Long-term debt incl. current maturities" in report
     assert "LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities" in report
+
+
+def test_edgar_balance_sheet_derives_liabilities_from_assets_and_equity(monkeypatch):
+    facts = _missing_liabilities_facts()
+    monkeypatch.setattr(edgar_fundamentals, "_load_company_facts", lambda ticker: facts)
+
+    report = edgar_fundamentals.get_balance_sheet("KO", curr_date="2026-05-13")
+
+    assert "Total liabilities | $68.49B" in report
+    assert "Total assets, Stockholders' equity" in report
+    assert (
+        "Assets-StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"
+        in report
+    )
 
 
 def test_edgar_income_statement_omits_stale_net_income_when_current_concept_exists(monkeypatch):

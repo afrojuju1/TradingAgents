@@ -94,7 +94,7 @@ def render_valuation_summary(payload: dict[str, Any]) -> str:
         lines.append(f"- {warning}")
     lines.extend(
         [
-            "- Cite valuation fields only from this summary; do not invent price targets, peer medians, or buyback yield when absent.",
+            "- Cite valuation fields only from this summary; do not invent price targets, unavailable peer benchmarks, or buyback yield when absent.",
             "- Dividend yield is rendered as a percentage when the source supplies a fractional yield.",
         ]
     )
@@ -131,7 +131,7 @@ def _build_warnings(facts: dict[str, dict[str, Any]]) -> list[str]:
         warnings.append("Dividend yield is unavailable; do not cite dividend yield.")
     if "trailing_pe" not in facts and "forward_pe" not in facts:
         warnings.append("P/E valuation is unavailable; do not cite trailing or forward P/E.")
-    warnings.append("Sector peer medians and buyback yield are not available in this fact pack unless explicitly listed.")
+    warnings.append("Peer benchmark valuations and buyback yield are not available in this fact pack unless explicitly listed.")
     return warnings
 
 

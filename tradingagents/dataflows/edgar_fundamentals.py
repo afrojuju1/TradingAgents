@@ -648,6 +648,33 @@ def _short_term_debt_includes_current_maturities(row: dict[str, Any] | None) -> 
 def _derive_balance_metrics(facts: Any, as_of: date) -> dict[str, dict[str, Any]]:
     derived: dict[str, dict[str, Any]] = {}
 
+    balance_period_end = _latest_common_instant_period(
+        facts,
+        ("total_assets", "stockholders_equity"),
+        as_of,
+    )
+    if balance_period_end:
+        reported_liabilities = _same_period_component(
+            facts,
+            "total_liabilities",
+            as_of,
+            balance_period_end,
+        )
+        assets = _same_period_component(facts, "total_assets", as_of, balance_period_end)
+        equity = _same_period_component(
+            facts,
+            "stockholders_equity",
+            as_of,
+            balance_period_end,
+        )
+        if not reported_liabilities and assets and equity:
+            derived["total_liabilities"] = {
+                **assets,
+                "numeric_value": float(assets["numeric_value"]) - float(equity["numeric_value"]),
+                "concept": f"{assets.get('concept', '')}-{equity.get('concept', '')}",
+                "component_metrics": ["total_assets", "stockholders_equity"],
+            }
+
     debt_period_end = _latest_debt_period(facts, as_of)
     if debt_period_end:
         components = {

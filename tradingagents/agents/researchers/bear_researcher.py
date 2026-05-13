@@ -36,7 +36,7 @@ Latest world affairs news: {news_report}
 Company fundamentals report: {fundamentals_report}
 Conversation history of the debate: {history}
 Last bull argument: {current_response}
-Use this information to deliver a compelling bear argument, refute the bull's claims, and engage in a dynamic debate that demonstrates the risks and weaknesses of investing in the stock. Do not introduce new numeric claims beyond the deterministic fact pack and cited source IDs. Do not mention CUDA, market share, product moats, patents, sector medians, or AI infrastructure spending unless the fact pack or a cited source explicitly lists them.
+Use this information to deliver a compelling bear argument, refute the bull's claims, and engage in a dynamic debate that demonstrates the risks and weaknesses of investing in the stock. Do not introduce new numeric claims beyond the deterministic fact pack and cited source IDs. Do not discuss CUDA, market share, product moats, patents, unavailable peer benchmarks, or AI infrastructure spending unless the fact pack or a cited source explicitly lists them.
 {get_report_budget_instruction("debate")}
 """ + get_language_instruction()
 
