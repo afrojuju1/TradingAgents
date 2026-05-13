@@ -1,5 +1,5 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from tradingagents.agents.utils.artifact_payloads import extract_artifact_from_messages
+from tradingagents.agents.utils.artifact_payloads import extract_artifact, strip_artifacts
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
     get_fundamentals_summary,
@@ -48,20 +48,24 @@ def _strip_portfolio_recommendations(report: str) -> str:
 def create_fundamentals_analyst(llm):
     def fundamentals_analyst_node(state):
         current_date = state["trade_date"]
-        instrument_context = build_instrument_context(state["company_of_interest"])
-
-        tools = [
-            get_fundamentals_summary,
-        ]
+        ticker = state["company_of_interest"]
+        instrument_context = build_instrument_context(ticker)
+        tool_output = get_fundamentals_summary.func(ticker, current_date)
+        fundamentals_summary = strip_artifacts(tool_output)
+        fundamental_facts = extract_artifact(
+            tool_output,
+            "fundamental_facts",
+        ) or state.get("fundamental_facts", {})
 
         system_message = (
-            "You are a researcher tasked with analyzing company fundamentals. Call get_fundamentals_summary exactly once for the instrument and current date before writing your report. The tool returns deterministic, parsed SEC facts plus accounting-context guardrails. Use those numeric values exactly and do not cite balance-sheet, income-statement, cash-flow, leverage, or liquidity figures that are absent from the tool result."
+            "You are a researcher tasked with analyzing company fundamentals. You have already been given deterministic, parsed SEC facts plus accounting-context guardrails. Use those numeric values exactly and do not cite balance-sheet, income-statement, cash-flow, leverage, or liquidity figures that are absent from the summary."
             + " Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."
-            + " For SEC-derived values, cite the period end, filing date, form type, accession, and source concept when the tool output provides them."
-            + " Preserve the tool's accounting context. For banks and financial companies, do not treat negative operating cash flow as standalone distress, do not benchmark debt-to-equity or current-ratio style metrics like industrial companies, and do not claim liabilities exceed assets when the deterministic summary says assets exceed liabilities."
+            + " For SEC-derived values, cite the period end, filing date, form type, accession, and source concept when the summary provides them."
+            + " Preserve the summary's accounting context. For banks and financial companies, do not treat negative operating cash flow as standalone distress, do not benchmark debt-to-equity or current-ratio style metrics like industrial companies, and do not claim liabilities exceed assets when the deterministic summary says assets exceed liabilities."
             + " Keep market valuation fields separate; do not invent market cap, AUM, price targets, dividend yields, or macro numbers unless another tool supplied them."
             + " Your role is analysis only; do not make the final BUY/HOLD/SELL portfolio decision, and do not include a recommendation to buy, hold, add, reduce, or sell."
-            + get_language_instruction(),
+            + f"\n\nDeterministic fundamentals summary:\n{fundamentals_summary}"
+            + get_language_instruction()
         )
 
         prompt = ChatPromptTemplate.from_messages(
@@ -69,10 +73,8 @@ def create_fundamentals_analyst(llm):
                 (
                     "system",
                     "You are a helpful AI assistant, collaborating with other assistants."
-                    " Use the provided tools to progress towards answering the question."
                     " If you are unable to fully answer, that's OK; another assistant with different tools"
-                    " will help where you left off. Execute what you can to make progress."
-                    " You have access to the following tools: {tool_names}.\n{system_message}"
+                    " will help where you left off. Execute what you can to make progress.\n{system_message}"
                     "For your reference, the current date is {current_date}. {instrument_context}",
                 ),
                 MessagesPlaceholder(variable_name="messages"),
@@ -80,27 +82,16 @@ def create_fundamentals_analyst(llm):
         )
 
         prompt = prompt.partial(system_message=system_message)
-        prompt = prompt.partial(tool_names=", ".join([tool.name for tool in tools]))
         prompt = prompt.partial(current_date=current_date)
         prompt = prompt.partial(instrument_context=instrument_context)
 
-        chain = prompt | llm.bind_tools(tools)
+        chain = prompt | llm
 
         result = chain.invoke(state["messages"])
 
-        report = ""
-        fundamental_facts = state.get("fundamental_facts", {})
-
-        if len(result.tool_calls) == 0:
-            report = _strip_portfolio_recommendations(result.content)
-            fundamental_facts = extract_artifact_from_messages(
-                state.get("messages", []),
-                "fundamental_facts",
-            ) or fundamental_facts
-
         return {
             "messages": [result],
-            "fundamentals_report": report,
+            "fundamentals_report": _strip_portfolio_recommendations(result.content),
             "fundamental_facts": fundamental_facts,
         }
 
