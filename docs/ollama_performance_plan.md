@@ -26,13 +26,19 @@ serialization fix is handled separately.
   together on GPU.
 - The current TradingAgents graph is mostly sequential, so Ollama parallelism
   helps multi-ticker runs more than a single run until the graph is changed.
+- The local `.env` opts into analyst parallelism with
+  `TRADINGAGENTS_PARALLEL_ANALYSTS=true` and
+  `TRADINGAGENTS_PARALLEL_ANALYST_WORKERS=2` to match the current Ollama
+  `OLLAMA_NUM_PARALLEL=2` setting.
 
 ## Backlog
 
-1. Parallelize independent analyst nodes.
+1. [Done] Parallelize independent analyst nodes.
    - Run market, sentiment, news, and fundamentals analysts concurrently.
    - Merge their reports before the researcher stage.
-   - This is the largest single-run speed opportunity.
+   - Implemented as an opt-in path behind `parallel_analysts` /
+     `TRADINGAGENTS_PARALLEL_ANALYSTS` so hosted providers keep the
+     conservative serial flow by default.
 
 2. Prefetch data before LLM calls.
    - Fetch price, indicators, fundamentals, news, Reddit, and StockTwits once.

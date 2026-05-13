@@ -26,6 +26,8 @@ def test_no_env_uses_built_in_defaults(monkeypatch):
     assert dc.DEFAULT_CONFIG["backend_url"] is None
     assert dc.DEFAULT_CONFIG["max_debate_rounds"] == 1
     assert dc.DEFAULT_CONFIG["checkpoint_enabled"] is False
+    assert dc.DEFAULT_CONFIG["parallel_analysts"] is False
+    assert dc.DEFAULT_CONFIG["parallel_analyst_workers"] == 4
 
 
 def test_string_overrides(monkeypatch):
@@ -49,11 +51,14 @@ def test_int_coercion(monkeypatch):
         monkeypatch,
         TRADINGAGENTS_MAX_DEBATE_ROUNDS="3",
         TRADINGAGENTS_MAX_RISK_ROUNDS="2",
+        TRADINGAGENTS_PARALLEL_ANALYST_WORKERS="2",
     )
     assert dc.DEFAULT_CONFIG["max_debate_rounds"] == 3
     assert isinstance(dc.DEFAULT_CONFIG["max_debate_rounds"], int)
     assert dc.DEFAULT_CONFIG["max_risk_discuss_rounds"] == 2
     assert isinstance(dc.DEFAULT_CONFIG["max_risk_discuss_rounds"], int)
+    assert dc.DEFAULT_CONFIG["parallel_analyst_workers"] == 2
+    assert isinstance(dc.DEFAULT_CONFIG["parallel_analyst_workers"], int)
 
 
 @pytest.mark.parametrize(
@@ -64,8 +69,13 @@ def test_int_coercion(monkeypatch):
     ],
 )
 def test_bool_coercion(monkeypatch, raw, expected):
-    dc = _reload_with_env(monkeypatch, TRADINGAGENTS_CHECKPOINT_ENABLED=raw)
+    dc = _reload_with_env(
+        monkeypatch,
+        TRADINGAGENTS_CHECKPOINT_ENABLED=raw,
+        TRADINGAGENTS_PARALLEL_ANALYSTS=raw,
+    )
     assert dc.DEFAULT_CONFIG["checkpoint_enabled"] is expected
+    assert dc.DEFAULT_CONFIG["parallel_analysts"] is expected
 
 
 def test_empty_env_value_is_passthrough(monkeypatch):

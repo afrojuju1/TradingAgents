@@ -17,6 +17,8 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_MAX_RISK_ROUNDS":      "max_risk_discuss_rounds",
     "TRADINGAGENTS_CHECKPOINT_ENABLED":   "checkpoint_enabled",
     "TRADINGAGENTS_BENCHMARK_TICKER":     "benchmark_ticker",
+    "TRADINGAGENTS_PARALLEL_ANALYSTS":    "parallel_analysts",
+    "TRADINGAGENTS_PARALLEL_ANALYST_WORKERS": "parallel_analyst_workers",
 }
 
 
@@ -67,6 +69,11 @@ DEFAULT_CONFIG = _apply_env_overrides({
     # Checkpoint/resume: when True, LangGraph saves state after each node
     # so a crashed run can resume from the last successful step.
     "checkpoint_enabled": False,
+    # Run analyst report generation concurrently. This improves local Ollama
+    # throughput when OLLAMA_NUM_PARALLEL > 1, but remains opt-in so hosted
+    # providers with strict rate limits keep the conservative serial flow.
+    "parallel_analysts": False,
+    "parallel_analyst_workers": 4,
     # Output language for analyst reports and final decision
     # Internal agent debate stays in English for reasoning quality
     "output_language": "English",

@@ -1,6 +1,9 @@
 # TradingAgents/graph/setup.py
 
-from typing import Any, Dict
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, Callable, Dict
+
+from langchain_core.messages import HumanMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
@@ -8,6 +11,62 @@ from tradingagents.agents import *
 from tradingagents.agents.utils.agent_states import AgentState
 
 from .conditional_logic import ConditionalLogic
+
+
+_REPORT_FIELD_BY_ANALYST = {
+    "market": "market_report",
+    "social": "sentiment_report",
+    "news": "news_report",
+    "fundamentals": "fundamentals_report",
+}
+
+
+def _merge_node_update(state: dict, update: dict) -> None:
+    """Apply a LangGraph-style node update to a local analyst state."""
+    for key, value in update.items():
+        if key == "messages":
+            state.setdefault("messages", []).extend(value)
+        else:
+            state[key] = value
+
+
+def _run_single_analyst_loop(
+    *,
+    analyst_type: str,
+    analyst_node: Callable[[dict], dict],
+    tool_node: ToolNode,
+    base_state: dict,
+    max_tool_iterations: int = 8,
+) -> dict:
+    """Run one analyst and its tool loop against an isolated message state."""
+    report_field = _REPORT_FIELD_BY_ANALYST[analyst_type]
+    state = {
+        "messages": [HumanMessage(content=base_state["company_of_interest"])],
+        "company_of_interest": base_state["company_of_interest"],
+        "trade_date": base_state["trade_date"],
+        "past_context": base_state.get("past_context", ""),
+        "investment_debate_state": base_state["investment_debate_state"],
+        "risk_debate_state": base_state["risk_debate_state"],
+        "market_report": "",
+        "sentiment_report": "",
+        "news_report": "",
+        "fundamentals_report": "",
+    }
+
+    for _ in range(max_tool_iterations):
+        analyst_update = analyst_node(state)
+        _merge_node_update(state, analyst_update)
+
+        last_message = state["messages"][-1]
+        if not getattr(last_message, "tool_calls", None):
+            return {report_field: state.get(report_field, "")}
+
+        tool_update = tool_node.invoke(state)
+        _merge_node_update(state, tool_update)
+
+    raise RuntimeError(
+        f"{analyst_type} analyst exceeded {max_tool_iterations} tool iterations"
+    )
 
 
 class GraphSetup:
@@ -19,12 +78,16 @@ class GraphSetup:
         deep_thinking_llm: Any,
         tool_nodes: Dict[str, ToolNode],
         conditional_logic: ConditionalLogic,
+        parallel_analysts: bool = False,
+        parallel_analyst_workers: int = 4,
     ):
         """Initialize with required components."""
         self.quick_thinking_llm = quick_thinking_llm
         self.deep_thinking_llm = deep_thinking_llm
         self.tool_nodes = tool_nodes
         self.conditional_logic = conditional_logic
+        self.parallel_analysts = parallel_analysts
+        self.parallel_analyst_workers = parallel_analyst_workers
 
     def setup_graph(
         self, selected_analysts=["market", "social", "news", "fundamentals"]
@@ -111,6 +174,62 @@ class GraphSetup:
         workflow.add_node("Conservative Analyst", conservative_analyst)
         workflow.add_node("Portfolio Manager", portfolio_manager_node)
 
+        if self.parallel_analysts:
+            workflow.add_node(
+                "Parallel Analysts",
+                self._create_parallel_analysts_node(
+                    selected_analysts,
+                    analyst_nodes,
+                    tool_nodes,
+                ),
+            )
+            workflow.add_edge(START, "Parallel Analysts")
+            workflow.add_edge("Parallel Analysts", "Bull Researcher")
+            workflow.add_conditional_edges(
+                "Bull Researcher",
+                self.conditional_logic.should_continue_debate,
+                {
+                    "Bear Researcher": "Bear Researcher",
+                    "Research Manager": "Research Manager",
+                },
+            )
+            workflow.add_conditional_edges(
+                "Bear Researcher",
+                self.conditional_logic.should_continue_debate,
+                {
+                    "Bull Researcher": "Bull Researcher",
+                    "Research Manager": "Research Manager",
+                },
+            )
+            workflow.add_edge("Research Manager", "Trader")
+            workflow.add_edge("Trader", "Aggressive Analyst")
+            workflow.add_conditional_edges(
+                "Aggressive Analyst",
+                self.conditional_logic.should_continue_risk_analysis,
+                {
+                    "Conservative Analyst": "Conservative Analyst",
+                    "Portfolio Manager": "Portfolio Manager",
+                },
+            )
+            workflow.add_conditional_edges(
+                "Conservative Analyst",
+                self.conditional_logic.should_continue_risk_analysis,
+                {
+                    "Neutral Analyst": "Neutral Analyst",
+                    "Portfolio Manager": "Portfolio Manager",
+                },
+            )
+            workflow.add_conditional_edges(
+                "Neutral Analyst",
+                self.conditional_logic.should_continue_risk_analysis,
+                {
+                    "Aggressive Analyst": "Aggressive Analyst",
+                    "Portfolio Manager": "Portfolio Manager",
+                },
+            )
+            workflow.add_edge("Portfolio Manager", END)
+            return workflow
+
         # Define edges
         # Start with the first analyst
         first_analyst = selected_analysts[0]
@@ -184,3 +303,37 @@ class GraphSetup:
         workflow.add_edge("Portfolio Manager", END)
 
         return workflow
+
+    def _create_parallel_analysts_node(
+        self,
+        selected_analysts: list[str],
+        analyst_nodes: Dict[str, Callable[[dict], dict]],
+        tool_nodes: Dict[str, ToolNode],
+    ) -> Callable[[dict], dict]:
+        max_workers = max(1, min(self.parallel_analyst_workers, len(selected_analysts)))
+
+        def parallel_analysts_node(state) -> dict:
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = {
+                    executor.submit(
+                        _run_single_analyst_loop,
+                        analyst_type=analyst_type,
+                        analyst_node=analyst_nodes[analyst_type],
+                        tool_node=tool_nodes[analyst_type],
+                        base_state=state,
+                    ): analyst_type
+                    for analyst_type in selected_analysts
+                }
+
+                reports = {}
+                for future in as_completed(futures):
+                    analyst_type = futures[future]
+                    try:
+                        reports.update(future.result())
+                    except Exception as exc:
+                        raise RuntimeError(
+                            f"parallel {analyst_type} analyst failed"
+                        ) from exc
+                return reports
+
+        return parallel_analysts_node
