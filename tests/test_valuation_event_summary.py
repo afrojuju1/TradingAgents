@@ -21,6 +21,7 @@ EVENT_TEXT = """# Event calendar for AMD
 # Source: yfinance calendar
 
 Earnings Date: 2026-07-28
+Revenue Average: 78979992050
 Ex-Dividend Date: 2026-06-12
 """
 
@@ -46,6 +47,7 @@ def test_event_summary_parses_calendar_dates():
 
     assert payload["parser_status"] == "parsed"
     assert payload["events"]["earnings_date"]["dates"] == ["2026-07-28"]
+    assert payload["events"]["revenue_average"]["numeric_value"] == 78_979_992_050
     assert payload["events"]["ex_dividend_date"]["value"] == "2026-06-12"
 
 

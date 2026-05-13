@@ -31,9 +31,15 @@ WARNING_PATTERNS = (
     ("fallback_text", re.compile(r"\b(?:falling back|using fallback)\b", re.I)),
 )
 
-MONEY_RE = re.compile(r"\$-?\d+(?:,\d{3})*(?:\.\d+)?\s*[TBMK]?", re.I)
-RSI_RE = re.compile(r"\bRSI\b[^0-9\-+]{0,40}([-+]?\d+(?:\.\d+)?)", re.I)
-MACD_RE = re.compile(r"\bMACD\b[^0-9\-+]{0,40}([-+]?\d+(?:\.\d+)?)", re.I)
+MONEY_RE = re.compile(r"-?\$-?\d+(?:,\d{3})*(?:\.\d+)?\s*[TBMK]?", re.I)
+RSI_RE = re.compile(
+    r"\bRSI\b\s*(?:at|of|is|was|:|=|\()\s*([-+]?\d+(?:\.\d+)?)",
+    re.I,
+)
+MACD_RE = re.compile(
+    r"\bMACD\b\s*(?:at|of|is|was|:|=|\()\s*([-+]?\d+(?:\.\d+)?)",
+    re.I,
+)
 
 
 @dataclass(frozen=True)
@@ -168,6 +174,8 @@ def _check_recommendation_leakage(
 
 def _parse_amount(raw: str) -> float | None:
     cleaned = raw.strip().replace("$", "").replace(",", "").replace(" ", "")
+    if cleaned.startswith("--"):
+        cleaned = cleaned[2:]
     multiplier = 1.0
     suffix = cleaned[-1:].upper()
     if suffix in {"T", "B", "M", "K"}:
@@ -175,6 +183,18 @@ def _parse_amount(raw: str) -> float | None:
         multiplier = {"T": 1e12, "B": 1e9, "M": 1e6, "K": 1e3}[suffix]
     try:
         return float(cleaned) * multiplier
+    except ValueError:
+        return None
+
+
+def _parse_plain_number(raw) -> float | None:
+    if raw is None:
+        return None
+    cleaned = str(raw).strip().replace(",", "").replace(" ", "")
+    if cleaned.lower() in {"", "n/a", "na", "none", "nan"}:
+        return None
+    try:
+        return float(cleaned)
     except ValueError:
         return None
 
@@ -286,7 +306,7 @@ def _fundamental_allowed_values(fundamental_facts: dict) -> list[float]:
     for fact in facts.values():
         value = fact.get("numeric_value") if isinstance(fact, dict) else None
         if isinstance(value, (int, float)):
-            values.append(float(value))
+            values.extend([float(value), abs(float(value))])
     relationships = fundamental_facts.get("relationships", {})
     relationship_value = relationships.get("assets_minus_liabilities")
     if isinstance(relationship_value, (int, float)):
@@ -300,7 +320,21 @@ def _valuation_allowed_values(valuation_facts: dict | None) -> list[float]:
     for fact in facts.values():
         value = fact.get("numeric_value") if isinstance(fact, dict) else None
         if isinstance(value, (int, float)):
-            values.append(float(value))
+            values.extend([float(value), abs(float(value))])
+    return values
+
+
+def _event_allowed_values(event_facts: dict | None) -> list[float]:
+    values: list[float] = []
+    events = event_facts.get("events", {}) if isinstance(event_facts, dict) else {}
+    for event in events.values():
+        if not isinstance(event, dict):
+            continue
+        value = event.get("numeric_value")
+        if not isinstance(value, (int, float)):
+            value = _parse_plain_number(event.get("value"))
+        if isinstance(value, (int, float)):
+            values.extend([float(value), abs(float(value))])
     return values
 
 
@@ -310,6 +344,7 @@ def _check_fundamentals_against_facts(
     root: Path,
     fundamental_facts: dict | None,
     valuation_facts: dict | None = None,
+    event_facts: dict | None = None,
 ) -> list[QualityIssue]:
     if not fundamental_facts:
         return []
@@ -350,6 +385,7 @@ def _check_fundamentals_against_facts(
 
     allowed = _fundamental_allowed_values(fundamental_facts)
     allowed.extend(_valuation_allowed_values(valuation_facts))
+    allowed.extend(_event_allowed_values(event_facts))
     for match in MONEY_RE.finditer(text):
         value = _parse_amount(match.group(0))
         if value is None:
@@ -360,7 +396,7 @@ def _check_fundamentals_against_facts(
                     "warning",
                     "fundamental_value_unverified",
                     f"{_display_path(fundamentals_path, root)}:{_line_number(text, match.start())}",
-                    f"fundamentals dollar value {match.group(0)} is not present in fundamental_facts.json or valuation_facts.json",
+                    f"fundamentals dollar value {match.group(0)} is not present in fundamental_facts.json, valuation_facts.json, or event_facts.json",
                 )
             )
 
@@ -413,6 +449,7 @@ def check_report_quality(
     market_facts = _read_json_artifact(report_root, "market_facts.json")
     fundamental_facts = _read_json_artifact(report_root, "fundamental_facts.json")
     valuation_facts = _read_json_artifact(report_root, "valuation_facts.json")
+    event_facts = _read_json_artifact(report_root, "event_facts.json")
 
     for path in markdown_files:
         text = _read_text(path)
@@ -465,6 +502,7 @@ def check_report_quality(
                 report_root,
                 fundamental_facts,
                 valuation_facts,
+                event_facts,
             )
         )
     elif root.is_dir():

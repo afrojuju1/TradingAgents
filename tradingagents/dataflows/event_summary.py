@@ -92,6 +92,7 @@ def _parse_event_lines(text: str) -> dict[str, dict[str, Any]]:
             "event": metric,
             "label": label,
             "value": raw_value,
+            "numeric_value": _parse_number(raw_value),
             "dates": re.findall(r"\d{4}-\d{2}-\d{2}", raw_value),
         }
     return facts
@@ -115,3 +116,15 @@ def _source_label(text: str) -> str:
 
 def _normalize(value: str) -> str:
     return re.sub(r"\s+", " ", value.strip().lower())
+
+
+def _parse_number(value: str | None) -> float | None:
+    if not value:
+        return None
+    cleaned = value.strip().replace(",", "")
+    if cleaned.lower() in {"n/a", "na", "none", "nan"}:
+        return None
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None

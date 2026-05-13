@@ -171,3 +171,43 @@ def test_report_quality_allows_valuation_fact_values(tmp_path):
     codes = _codes(report_dir)
 
     assert "fundamental_value_unverified" not in codes
+
+
+def test_report_quality_allows_event_fact_values(tmp_path):
+    report_dir = tmp_path
+    analysts_dir = report_dir / "1_analysts"
+    analysts_dir.mkdir()
+    (report_dir / "complete_report.md").write_text("## Report\n", encoding="utf-8")
+    (analysts_dir / "fundamentals.md").write_text(
+        "Revenue Average was $78.98B and EPS high was $1.99.",
+        encoding="utf-8",
+    )
+    (report_dir / "fundamental_facts.json").write_text(
+        '{"relationships": {}, "accounting_context": {}, "facts": {}}',
+        encoding="utf-8",
+    )
+    (report_dir / "event_facts.json").write_text(
+        '{"events": {"revenue_average": {"numeric_value": 78979992050}, "earnings_high": {"numeric_value": 1.99}}}',
+        encoding="utf-8",
+    )
+
+    codes = _codes(report_dir)
+
+    assert "fundamental_value_unverified" not in codes
+
+
+def test_report_quality_does_not_parse_table_label_as_rsi_value(tmp_path):
+    _write_report(tmp_path, "# Fundamentals\n# Source: SEC EDGAR via edgartools\n")
+    (tmp_path / "1_analysts" / "market.md").write_text(
+        "| Momentum | Positive MACD/RSI | Bullish crossover, neutral RSI |\n"
+        "| Volatility | 33.78% annualized | High risk |",
+        encoding="utf-8",
+    )
+    (tmp_path / "market_facts.json").write_text(
+        json.dumps({"indicators": {"rsi": {"value": 69.26}, "macd": {"value": 7.15}}}),
+        encoding="utf-8",
+    )
+
+    codes = _codes(tmp_path)
+
+    assert "rsi_mismatch" not in codes
