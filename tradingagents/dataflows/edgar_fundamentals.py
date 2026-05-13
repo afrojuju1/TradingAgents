@@ -46,12 +46,22 @@ BALANCE_SHEET_CONCEPTS = {
         "LongTermDebtAndFinanceLeaseObligationsNoncurrent",
         "LongTermDebt",
     ),
+    "long_term_debt_including_current": (
+        "LongTermDebtAndFinanceLeaseObligationsIncludingCurrentMaturities",
+        "LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities",
+    ),
 }
 
 BALANCE_SHEET_SNAPSHOT_CONCEPTS = {
     metric: concepts
     for metric, concepts in BALANCE_SHEET_CONCEPTS.items()
-    if metric not in {"short_term_debt", "current_debt", "long_term_debt"}
+    if metric
+    not in {
+        "short_term_debt",
+        "current_debt",
+        "long_term_debt",
+        "long_term_debt_including_current",
+    }
 }
 
 INCOME_STATEMENT_CONCEPTS = {
@@ -99,6 +109,7 @@ METRIC_LABELS = {
     "short_term_debt": "Short-term debt",
     "current_debt": "Current debt",
     "long_term_debt": "Long-term debt",
+    "long_term_debt_including_current": "Long-term debt incl. current maturities",
     "total_debt": "Total debt",
     "net_debt": "Net debt",
     "debt_to_equity": "Debt to equity",
@@ -616,11 +627,22 @@ def _same_period_component(
 
 def _latest_debt_period(facts: Any, as_of: date) -> date | None:
     periods: list[date] = []
-    for metric in ("short_term_debt", "current_debt", "long_term_debt"):
+    for metric in (
+        "short_term_debt",
+        "current_debt",
+        "long_term_debt",
+        "long_term_debt_including_current",
+    ):
         rows = _exact_concept_rows(facts, BALANCE_SHEET_CONCEPTS[metric], as_of)
         rows = _filter_period_type(rows, "instant")
         periods.extend(period for period in rows["period_end_date"].tolist() if period)
     return max(periods) if periods else None
+
+
+def _short_term_debt_includes_current_maturities(row: dict[str, Any] | None) -> bool:
+    if not row:
+        return False
+    return "CurrentMaturitiesOfLongTermDebt" in str(row.get("concept") or "")
 
 
 def _derive_balance_metrics(facts: Any, as_of: date) -> dict[str, dict[str, Any]]:
@@ -630,9 +652,28 @@ def _derive_balance_metrics(facts: Any, as_of: date) -> dict[str, dict[str, Any]
     if debt_period_end:
         components = {
             metric: _same_period_component(facts, metric, as_of, debt_period_end)
-            for metric in ("short_term_debt", "current_debt", "long_term_debt")
+            for metric in (
+                "short_term_debt",
+                "current_debt",
+                "long_term_debt",
+                "long_term_debt_including_current",
+            )
         }
-        present_components = {metric: row for metric, row in components.items() if row}
+        present_components: dict[str, dict[str, Any]] = {}
+        if components.get("short_term_debt"):
+            present_components["short_term_debt"] = components["short_term_debt"]
+
+        combined_long_term = components.get("long_term_debt_including_current")
+        if (
+            combined_long_term
+            and not _short_term_debt_includes_current_maturities(components.get("short_term_debt"))
+        ):
+            present_components["long_term_debt_including_current"] = combined_long_term
+        else:
+            for metric in ("current_debt", "long_term_debt"):
+                if components.get(metric):
+                    present_components[metric] = components[metric]
+
         if present_components:
             total_debt = sum(float(row["numeric_value"]) for row in present_components.values())
             source = max(

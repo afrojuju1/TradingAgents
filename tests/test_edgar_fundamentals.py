@@ -208,6 +208,29 @@ def _cat_period_mismatch_facts():
     )
 
 
+def _jpm_bank_debt_facts():
+    return FakeFacts(
+        [
+            _row("Assets", 4_564_000_000_000, "2026-03-31", accession="0001628280-26-029344"),
+            _row("Liabilities", 4_205_000_000_000, "2026-03-31", accession="0001628280-26-029344"),
+            _row("StockholdersEquity", 359_000_000_000, "2026-03-31", accession="0001628280-26-029344"),
+            _row(
+                "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
+                312_138_000_000,
+                "2026-03-31",
+                accession="0001628280-26-029344",
+            ),
+            _row("ShortTermBorrowings", 68_048_000_000, "2026-03-31", accession="0001628280-26-029344"),
+            _row(
+                "LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities",
+                448_764_000_000,
+                "2026-03-31",
+                accession="0001628280-26-029344",
+            ),
+        ]
+    )
+
+
 def test_edgar_balance_sheet_derives_current_period_debt(monkeypatch):
     facts = _oxy_facts()
     monkeypatch.setattr(edgar_fundamentals, "_load_company_facts", lambda ticker: facts)
@@ -240,6 +263,18 @@ def test_edgar_balance_sheet_keeps_snapshot_period_consistent(monkeypatch):
     assert "Current assets | $48.57B | as of 2026-03-31" in reported_facts
     assert "Short-term debt" not in reported_facts
     assert "Long-term debt" not in reported_facts
+
+
+def test_edgar_balance_sheet_uses_combined_long_term_debt_for_banks(monkeypatch):
+    facts = _jpm_bank_debt_facts()
+    monkeypatch.setattr(edgar_fundamentals, "_load_company_facts", lambda ticker: facts)
+
+    report = edgar_fundamentals.get_balance_sheet("JPM", curr_date="2026-05-12")
+
+    assert "Total debt | $516.81B" in report
+    assert "Net debt | $204.67B" in report
+    assert "Long-term debt incl. current maturities" in report
+    assert "LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities" in report
 
 
 def test_edgar_income_statement_omits_stale_net_income_when_current_concept_exists(monkeypatch):
