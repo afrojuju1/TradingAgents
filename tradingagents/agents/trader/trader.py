@@ -35,7 +35,8 @@ def create_trader(llm):
                     "You are a trading agent analyzing market data to make investment decisions. "
                     "Based on your analysis, provide a specific recommendation to buy, sell, or hold. "
                     "Anchor your reasoning in the deterministic fact pack, analysts' reports, and the research plan. "
-                    "Do not introduce new numeric claims beyond the fact pack and cited source IDs."
+                    "Do not introduce new numeric claims beyond the fact pack and cited source IDs. "
+                    "For entry and stop-loss levels, use only current price, support, resistance, or moving-average levels explicitly listed in the deterministic fact pack; otherwise leave those fields empty."
                     + get_report_budget_instruction("trader")
                     + get_language_instruction()
                 ),

@@ -21,7 +21,7 @@ def create_bear_researcher(llm):
 Key points to focus on:
 
 - Risks and Challenges: Highlight factors like market saturation, financial instability, or macroeconomic threats that could hinder the stock's performance.
-- Competitive Weaknesses: Emphasize vulnerabilities such as weaker market positioning, declining innovation, or threats from competitors.
+- Competitive Weaknesses: Discuss competitive position only if it is directly supported by the deterministic fact pack or cited news sources. Otherwise omit this topic.
 - Negative Indicators: Use evidence from financial data, market trends, or recent adverse news to support your position.
 - Bull Counterpoints: Critically analyze the bull argument with specific data and sound reasoning, exposing weaknesses or over-optimistic assumptions.
 - Engagement: Present your argument in a conversational style, directly engaging with the bull analyst's points and debating effectively rather than simply listing facts.
@@ -36,7 +36,7 @@ Latest world affairs news: {news_report}
 Company fundamentals report: {fundamentals_report}
 Conversation history of the debate: {history}
 Last bull argument: {current_response}
-Use this information to deliver a compelling bear argument, refute the bull's claims, and engage in a dynamic debate that demonstrates the risks and weaknesses of investing in the stock. Do not introduce new numeric claims beyond the deterministic fact pack and cited source IDs.
+Use this information to deliver a compelling bear argument, refute the bull's claims, and engage in a dynamic debate that demonstrates the risks and weaknesses of investing in the stock. Do not introduce new numeric claims beyond the deterministic fact pack and cited source IDs. Do not mention CUDA, market share, product moats, patents, sector medians, or AI infrastructure spending unless the fact pack or a cited source explicitly lists them.
 {get_report_budget_instruction("debate")}
 """ + get_language_instruction()
 

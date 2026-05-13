@@ -85,7 +85,8 @@ class ResearchPlan(BaseModel):
     strategic_actions: str = Field(
         description=(
             "Concrete steps for the trader to implement the recommendation, "
-            "including position sizing guidance consistent with the rating."
+            "using qualitative sizing guidance unless an explicit portfolio "
+            "allocation rule appears in the prompt."
         ),
     )
 
@@ -126,15 +127,26 @@ class TraderProposal(BaseModel):
     )
     entry_price: Optional[float] = Field(
         default=None,
-        description="Optional entry price target in the instrument's quote currency.",
+        description=(
+            "Optional entry price in the instrument's quote currency. Use only a "
+            "current price, support, resistance, or moving-average level listed "
+            "in the deterministic fact pack; otherwise leave empty."
+        ),
     )
     stop_loss: Optional[float] = Field(
         default=None,
-        description="Optional stop-loss price in the instrument's quote currency.",
+        description=(
+            "Optional stop-loss price in the instrument's quote currency. Use only "
+            "a support or moving-average level listed in the deterministic fact "
+            "pack; otherwise leave empty."
+        ),
     )
     position_sizing: Optional[str] = Field(
         default=None,
-        description="Optional sizing guidance, e.g. '5% of portfolio'.",
+        description=(
+            "Optional sizing guidance. Use qualitative sizing unless an explicit "
+            "portfolio allocation rule appears in the prompt."
+        ),
     )
 
 
@@ -185,7 +197,7 @@ class PortfolioDecision(BaseModel):
     )
     executive_summary: str = Field(
         description=(
-            "A concise action plan covering entry strategy, position sizing, "
+            "A concise action plan covering entry strategy, qualitative sizing, "
             "key risk levels, and time horizon. Two to four sentences."
         ),
     )
@@ -198,7 +210,10 @@ class PortfolioDecision(BaseModel):
     )
     price_target: Optional[float] = Field(
         default=None,
-        description="Optional target price in the instrument's quote currency.",
+        description=(
+            "Optional target price in the instrument's quote currency. Leave empty "
+            "unless an explicit target price appears in the deterministic fact pack."
+        ),
     )
     time_horizon: Optional[str] = Field(
         default=None,

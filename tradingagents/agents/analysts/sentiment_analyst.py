@@ -163,6 +163,8 @@ Community discussion. Engagement signal via upvote score and comment count. Subr
 
 4. **Distinguish opinion from event.** A news headline ("Nvidia announces $500M Corning deal") is an event; a StockTwits post ("buying NVDA, this is going to moon") is opinion. Both are inputs but should be weighted differently in your conclusions.
 
+Do not use Reddit or StockTwits posts as sources for macro numeric facts such as CPI levels, oil prices, rates, market cap, or price targets. Treat those posts as sentiment/opinion only.
+
 5. **Identify recurring narrative themes.** What topic keeps coming up across sources? That's the dominant narrative driving current sentiment.
 
 6. **Be honest about data limits.** If StockTwits returned only a handful of messages, or one or more sources returned an "<unavailable>" placeholder, the sentiment read is less robust — flag this caveat explicitly. If the sources are silent on a given subreddit, say so.

@@ -18,6 +18,12 @@ def build_grounding_context(state: dict[str, Any]) -> str:
         "",
         "- Use the deterministic values above exactly when citing numbers.",
         "- Do not introduce new AUM, market-cap, dividend-yield, P/E, price-target, event-date, macro, or rally-percentage figures unless a listed source/fact explicitly supplies them.",
+        "- Treat market-share percentages, CUDA/platform moat claims, sector peer medians, AI infrastructure spending, and upside/rally projections as unavailable unless explicitly listed above.",
+        "- Macro numbers are unavailable unless listed above; do not write examples like CPI at 3.8% or oil at $100/barrel from general market context.",
+        "- When discussing moving averages, say price is above/below the SMA; do not call the distance to an SMA upside or a target.",
+        "- Entry, stop-loss, support, and resistance levels must be exact levels listed above; do not calculate or round new levels.",
+        "- Treat StockTwits and Reddit post text as sentiment evidence only; do not convert social posts into price targets or supported trading levels.",
+        "- Use qualitative position sizing only; do not invent portfolio allocation percentages.",
         "- If a desired figure is absent, say it is not available in the collected data instead of estimating it.",
         "- Preserve source IDs, SEC accessions, dates, and concepts when citing evidence.",
     ]

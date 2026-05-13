@@ -228,3 +228,80 @@ def test_report_quality_does_not_parse_to_as_trillion_suffix(tmp_path):
 
     assert "unsupported_market_money" not in codes
     assert "market_value_mismatch" not in codes
+
+
+def test_report_quality_does_not_parse_price_range_second_value_as_negative(tmp_path):
+    _write_report(tmp_path, "# Fundamentals\n# Source: SEC EDGAR via edgartools\n")
+    research_dir = tmp_path / "2_research"
+    research_dir.mkdir()
+    (research_dir / "manager.md").write_text(
+        "Scale around current levels ($218-$223 range).",
+        encoding="utf-8",
+    )
+    (tmp_path / "market_facts.json").write_text(
+        json.dumps({"price": {"latest_open": 218.55, "window_high": 223.75}}),
+        encoding="utf-8",
+    )
+
+    codes = _codes(tmp_path)
+
+    assert "unsupported_downstream_money" not in codes
+
+
+def test_report_quality_flags_unsupported_downstream_claims(tmp_path):
+    _write_report(tmp_path, "# Fundamentals\n# Source: SEC EDGAR via edgartools\n")
+    research_dir = tmp_path / "2_research"
+    research_dir.mkdir()
+    (research_dir / "bull.md").write_text(
+        "CUDA gives a moat, 80% AI chip market share, $1.5T+ in AI infrastructure by 2030, a potential 15-20% rally, and stop-loss at 152.21.",
+        encoding="utf-8",
+    )
+    (tmp_path / "market_facts.json").write_text(
+        json.dumps({"price": {"latest_close": 220.78}}),
+        encoding="utf-8",
+    )
+    (tmp_path / "fundamental_facts.json").write_text(
+        json.dumps({"facts": {}, "relationships": {}, "accounting_context": {}}),
+        encoding="utf-8",
+    )
+
+    codes = _codes(tmp_path)
+
+    assert "unsupported_platform_claim" in codes
+    assert "unsupported_market_share" in codes
+    assert "unsupported_ai_tam" in codes
+    assert "unsupported_rally_projection" in codes
+    assert "unsupported_downstream_money" in codes
+    assert "unsupported_downstream_price_level" in codes
+
+
+def test_report_quality_flags_unsupported_macro_numbers(tmp_path):
+    _write_report(tmp_path, "# Fundamentals\n# Source: SEC EDGAR via edgartools\n")
+    research_dir = tmp_path / "2_research"
+    research_dir.mkdir()
+    (research_dir / "bear.md").write_text(
+        "CPI at 3.8% and oil prices ($100/barrel) pressure the stock.",
+        encoding="utf-8",
+    )
+
+    codes = _codes(tmp_path)
+
+    assert "unsupported_macro_number" in codes
+
+
+def test_report_quality_does_not_parse_stop_loss_drawdown_percent_as_price(tmp_path):
+    _write_report(tmp_path, "# Fundamentals\n# Source: SEC EDGAR via edgartools\n")
+    risk_dir = tmp_path / "4_risk"
+    risk_dir.mkdir()
+    (risk_dir / "conservative.md").write_text(
+        "The trader's stop-loss exposes the firm to a 20.22% drawdown.",
+        encoding="utf-8",
+    )
+    (tmp_path / "market_facts.json").write_text(
+        json.dumps({"risk": {"max_drawdown_pct": -20.22}}),
+        encoding="utf-8",
+    )
+
+    codes = _codes(tmp_path)
+
+    assert "unsupported_downstream_price_level" not in codes

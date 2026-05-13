@@ -31,7 +31,50 @@ WARNING_PATTERNS = (
     ("fallback_text", re.compile(r"\b(?:falling back|using fallback)\b", re.I)),
 )
 
-MONEY_RE = re.compile(r"-?\$-?\d+(?:,\d{3})*(?:\.\d+)?(?:[TBMK])?(?![A-Za-z])", re.I)
+DOWNSTREAM_ERROR_PATTERNS = (
+    (
+        "unsupported_market_share",
+        re.compile(
+            r"\b\d+(?:\.\d+)?\s*%\s+(?:of\s+)?(?:AI\s+)?(?:chip|GPU|market)\s+(?:market\s+)?share\b",
+            re.I,
+        ),
+    ),
+    (
+        "unsupported_rally_projection",
+        re.compile(
+            r"(?:\b\d+(?:\.\d+)?\s*(?:[-–]\s*\d+(?:\.\d+)?)?\s*%\s+upside\b|"
+            r"\b(?:could|would|may|expected|drive|potential|projected|target)\b.{0,40}"
+            r"\d+(?:\.\d+)?\s*(?:[-–]\s*\d+(?:\.\d+)?)?\s*%\s+rally\b)",
+            re.I,
+        ),
+    ),
+    (
+        "unsupported_sector_median",
+        re.compile(r"\bsector\s+medians?\b", re.I),
+    ),
+    (
+        "unsupported_ai_tam",
+        re.compile(r"(?:\$\d+(?:\.\d+)?T\+?\s+in\s+AI\s+infrastructure|\bAI\s+infrastructure\s+spending\b|\bby\s+2030\b)", re.I),
+    ),
+    (
+        "unsupported_platform_claim",
+        re.compile(r"\bCUDA\b", re.I),
+    ),
+    (
+        "unsupported_macro_number",
+        re.compile(
+            r"(?:\bCPI\b(?:\s+(?:at|of|printed))?[^.\n]{0,15}\b\d+(?:\.\d+)?\s*%|\boil\s+prices?\s*\(\s*\$?\d+(?:\.\d+)?)",
+            re.I,
+        ),
+    ),
+)
+
+MONEY_RE = re.compile(r"(?<!\d)-?\$-?\d+(?:,\d{3})*(?:\.\d+)?(?:[TBMK])?(?![A-Za-z])", re.I)
+PRICE_LEVEL_RE = re.compile(
+    r"\b(?:entry(?:\s+price)?|stop(?:-loss|\s+loss)?|stop\s+at|stop-loss\s+at)\b"
+    r"[^0-9$.\n]{0,30}\$?(?P<value>\d+(?:\.\d+)?)",
+    re.I,
+)
 RSI_RE = re.compile(
     r"\bRSI\b\s*(?:at|of|is|was|:|=|\()\s*([-+]?\d+(?:\.\d+)?)",
     re.I,
@@ -232,6 +275,21 @@ def _market_allowed_values(market_facts: dict) -> list[float]:
     return values
 
 
+def _allowed_percent_values(market_facts: dict) -> list[float]:
+    values: list[float] = []
+    price = market_facts.get("price", {}) if isinstance(market_facts, dict) else {}
+    risk = market_facts.get("risk", {}) if isinstance(market_facts, dict) else {}
+    for key in ("close_return_pct",):
+        value = price.get(key)
+        if isinstance(value, (int, float)):
+            values.extend([float(value), abs(float(value))])
+    for key in ("annualized_volatility_pct", "max_drawdown_pct"):
+        value = risk.get(key)
+        if isinstance(value, (int, float)):
+            values.extend([float(value), abs(float(value))])
+    return values
+
+
 def _check_market_against_facts(
     market_path: Path,
     text: str,
@@ -300,6 +358,70 @@ def _check_market_against_facts(
     return issues
 
 
+def _is_downstream_report(path: Path, report_root: Path) -> bool:
+    try:
+        rel = path.relative_to(report_root)
+    except ValueError:
+        return False
+    parts = rel.parts
+    return bool(parts) and parts[0] in {"2_research", "3_trading", "4_risk", "5_portfolio"}
+
+
+def _check_downstream_against_facts(
+    path: Path,
+    text: str,
+    root: Path,
+    allowed_money: list[float],
+    allowed_price_levels: list[float],
+) -> list[QualityIssue]:
+    issues: list[QualityIssue] = []
+    for code, pattern in DOWNSTREAM_ERROR_PATTERNS:
+        for match in pattern.finditer(text):
+            issues.append(
+                QualityIssue(
+                    "error",
+                    code,
+                    f"{_display_path(path, root)}:{_line_number(text, match.start())}",
+                    f"downstream report contains unsupported claim: {match.group(0)}",
+                )
+            )
+
+    for match in MONEY_RE.finditer(text):
+        value = _parse_amount(match.group(0))
+        if value is None:
+            continue
+        if allowed_money and not _close_enough(value, allowed_money, pct_tolerance=0.015):
+            issues.append(
+                QualityIssue(
+                    "error",
+                    "unsupported_downstream_money",
+                    f"{_display_path(path, root)}:{_line_number(text, match.start())}",
+                    f"downstream dollar value {match.group(0)} is not present in saved fact artifacts",
+                )
+            )
+    for match in PRICE_LEVEL_RE.finditer(text):
+        raw_value = match.group("value")
+        if text[match.end() : match.end() + 1] == "%":
+            continue
+        if "." not in raw_value and f"${raw_value}" not in match.group(0):
+            continue
+        value = float(raw_value)
+        if allowed_price_levels and not _close_enough(
+            value,
+            allowed_price_levels,
+            pct_tolerance=0.005,
+        ):
+            issues.append(
+                QualityIssue(
+                    "error",
+                    "unsupported_downstream_price_level",
+                    f"{_display_path(path, root)}:{_line_number(text, match.start())}",
+                    f"downstream entry/stop level {value:g} is not present in market_facts.json",
+                )
+            )
+    return issues
+
+
 def _fundamental_allowed_values(fundamental_facts: dict) -> list[float]:
     values: list[float] = []
     facts = fundamental_facts.get("facts", {}) if isinstance(fundamental_facts, dict) else {}
@@ -307,7 +429,7 @@ def _fundamental_allowed_values(fundamental_facts: dict) -> list[float]:
         value = fact.get("numeric_value") if isinstance(fact, dict) else None
         if isinstance(value, (int, float)):
             values.extend([float(value), abs(float(value))])
-    relationships = fundamental_facts.get("relationships", {})
+    relationships = fundamental_facts.get("relationships", {}) if isinstance(fundamental_facts, dict) else {}
     relationship_value = relationships.get("assets_minus_liabilities")
     if isinstance(relationship_value, (int, float)):
         values.append(abs(float(relationship_value)))
@@ -450,6 +572,10 @@ def check_report_quality(
     fundamental_facts = _read_json_artifact(report_root, "fundamental_facts.json")
     valuation_facts = _read_json_artifact(report_root, "valuation_facts.json")
     event_facts = _read_json_artifact(report_root, "event_facts.json")
+    downstream_allowed_money = _market_allowed_values(market_facts)
+    downstream_allowed_money.extend(_fundamental_allowed_values(fundamental_facts))
+    downstream_allowed_money.extend(_valuation_allowed_values(valuation_facts))
+    downstream_allowed_money.extend(_event_allowed_values(event_facts))
 
     for path in markdown_files:
         text = _read_text(path)
@@ -472,6 +598,16 @@ def check_report_quality(
                 patterns=WARNING_PATTERNS,
             )
         )
+        if _is_downstream_report(path, report_root):
+            issues.extend(
+                _check_downstream_against_facts(
+                    path,
+                    text,
+                    report_root,
+                    downstream_allowed_money,
+                    _market_allowed_values(market_facts),
+                )
+            )
 
     fundamentals_path = report_root / "1_analysts" / "fundamentals.md"
     market_path = report_root / "1_analysts" / "market.md"

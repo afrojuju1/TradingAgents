@@ -22,6 +22,7 @@ def create_news_analyst(llm):
 
         system_message = (
             "You are a news researcher tasked with analyzing recent company and macro news. You have already been given deterministic source records with source IDs, publishers, URLs, summaries, and relevance scores. Cite source IDs for every material news claim, and do not introduce CPI, Fed, oil, dividend, AUM, market-cap, or price-target numbers unless they appear in the summary."
+            + " Do not infer weakening demand, margin pressure, supply-chain costs, investor intent, or company-specific exposure unless a cited source explicitly says it. If a source is broad market or sector news, label it as broad context rather than NVDA-specific evidence."
             + """ Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."""
             + " Your role is analysis only; do not make the final BUY/HOLD/SELL portfolio decision."
             + get_report_budget_instruction("analyst")

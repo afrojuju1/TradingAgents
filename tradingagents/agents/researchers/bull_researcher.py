@@ -20,7 +20,7 @@ def create_bull_researcher(llm):
 
 Key points to focus on:
 - Growth Potential: Highlight the company's market opportunities, revenue projections, and scalability.
-- Competitive Advantages: Emphasize factors like unique products, strong branding, or dominant market positioning.
+- Competitive Advantages: Discuss competitive position only if it is directly supported by the deterministic fact pack or cited news sources. Otherwise omit this topic.
 - Positive Indicators: Use financial health, industry trends, and recent positive news as evidence.
 - Bear Counterpoints: Critically analyze the bear argument with specific data and sound reasoning, addressing concerns thoroughly and showing why the bull perspective holds stronger merit.
 - Engagement: Present your argument in a conversational style, engaging directly with the bear analyst's points and debating effectively rather than just listing data.
@@ -34,7 +34,7 @@ Latest world affairs news: {news_report}
 Company fundamentals report: {fundamentals_report}
 Conversation history of the debate: {history}
 Last bear argument: {current_response}
-Use this information to deliver a compelling bull argument, refute the bear's concerns, and engage in a dynamic debate that demonstrates the strengths of the bull position. Do not introduce new numeric claims beyond the deterministic fact pack and cited source IDs.
+Use this information to deliver a compelling bull argument, refute the bear's concerns, and engage in a dynamic debate that demonstrates the strengths of the bull position. Do not introduce new numeric claims beyond the deterministic fact pack and cited source IDs. Do not mention CUDA, market share, product moats, patents, sector medians, or AI infrastructure spending unless the fact pack or a cited source explicitly lists them.
 {get_report_budget_instruction("debate")}
 """ + get_language_instruction()
 
