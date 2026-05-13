@@ -30,6 +30,8 @@ serialization fix is handled separately.
   `TRADINGAGENTS_PARALLEL_ANALYSTS=true` and
   `TRADINGAGENTS_PARALLEL_ANALYST_WORKERS=2` to match the current Ollama
   `OLLAMA_NUM_PARALLEL=2` setting.
+- The local `.env` can opt into vendor tool-result caching with
+  `TRADINGAGENTS_DATA_TOOL_CACHE_ENABLED=true`.
 
 ## Backlog
 
@@ -45,10 +47,12 @@ serialization fix is handled separately.
    - Pass prepared data to analyst prompts instead of letting each analyst
      discover data through tool-call loops.
 
-3. Add ticker/date data caching.
+3. [Done] Add ticker/date data caching.
    - Cache yfinance, financial statements, news, and social data under the
      configured cache directory.
    - Key by ticker, trade date, vendor, and lookback window.
+   - Implemented as an opt-in vendor tool-result cache keyed by method,
+     vendor, args, and kwargs, with per-key locking for concurrent analysts.
 
 4. Add a fast run profile.
    - Quick and deep model both set to `qwen3:8b`.

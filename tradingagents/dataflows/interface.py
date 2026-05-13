@@ -1,3 +1,9 @@
+import hashlib
+import json
+import os
+import tempfile
+import threading
+import time
 from typing import Annotated
 
 # Import from vendor-specific modules
@@ -65,6 +71,9 @@ VENDOR_LIST = [
     "alpha_vantage",
 ]
 
+_CACHE_LOCKS: dict[str, threading.Lock] = {}
+_CACHE_LOCKS_GUARD = threading.Lock()
+
 # Mapping of methods to their vendor-specific implementations
 VENDOR_METHODS = {
     # core_stock_apis
@@ -131,8 +140,133 @@ def get_vendor(category: str, method: str = None) -> str:
     # Fall back to category-level configuration
     return config.get("data_vendors", {}).get(category, "default")
 
+
+def _tool_cache_enabled(config: dict) -> bool:
+    return bool(config.get("data_tool_cache_enabled", False))
+
+
+def _tool_cache_key(method: str, vendor: str, args: tuple, kwargs: dict) -> str:
+    payload = {
+        "method": method,
+        "vendor": vendor,
+        "args": args,
+        "kwargs": kwargs,
+    }
+    encoded = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _tool_cache_path(config: dict, method: str, vendor: str, cache_key: str) -> str:
+    return os.path.join(
+        config["data_cache_dir"],
+        "tool_results",
+        method,
+        vendor,
+        f"{cache_key}.json",
+    )
+
+
+def _cache_lock(cache_key: str) -> threading.Lock:
+    with _CACHE_LOCKS_GUARD:
+        lock = _CACHE_LOCKS.get(cache_key)
+        if lock is None:
+            lock = threading.Lock()
+            _CACHE_LOCKS[cache_key] = lock
+        return lock
+
+
+def _read_tool_cache(config: dict, method: str, vendor: str, cache_key: str):
+    path = _tool_cache_path(config, method, vendor, cache_key)
+    if not os.path.exists(path):
+        return None
+
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    ttl_seconds = int(config.get("data_tool_cache_ttl_seconds", 0))
+    created_at = float(payload.get("created_at", 0))
+    if ttl_seconds > 0 and time.time() - created_at > ttl_seconds:
+        return None
+
+    return payload.get("result")
+
+
+def _is_cacheable_result(result) -> bool:
+    if isinstance(result, str) and result.lstrip().lower().startswith("error "):
+        return False
+    return True
+
+
+def _write_tool_cache(
+    config: dict,
+    method: str,
+    vendor: str,
+    cache_key: str,
+    result,
+) -> None:
+    if not _is_cacheable_result(result):
+        return
+
+    path = _tool_cache_path(config, method, vendor, cache_key)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    payload = {
+        "created_at": time.time(),
+        "method": method,
+        "vendor": vendor,
+        "result": result,
+    }
+
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=os.path.dirname(path),
+            delete=False,
+        ) as handle:
+            tmp_path = handle.name
+            json.dump(payload, handle, ensure_ascii=False)
+        os.replace(tmp_path, path)
+    except (OSError, TypeError):
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+
+def _call_vendor_with_cache(
+    config: dict,
+    method: str,
+    vendor: str,
+    impl_func,
+    args: tuple,
+    kwargs: dict,
+):
+    if not _tool_cache_enabled(config):
+        return impl_func(*args, **kwargs)
+
+    cache_key = _tool_cache_key(method, vendor, args, kwargs)
+    cached_result = _read_tool_cache(config, method, vendor, cache_key)
+    if cached_result is not None:
+        return cached_result
+
+    with _cache_lock(cache_key):
+        cached_result = _read_tool_cache(config, method, vendor, cache_key)
+        if cached_result is not None:
+            return cached_result
+
+        result = impl_func(*args, **kwargs)
+        _write_tool_cache(config, method, vendor, cache_key, result)
+        return result
+
+
 def route_to_vendor(method: str, *args, **kwargs):
     """Route method calls to appropriate vendor implementation with fallback support."""
+    config = get_config()
     category = get_category_for_method(method)
     vendor_config = get_vendor(category, method)
     primary_vendors = [v.strip() for v in vendor_config.split(',')]
@@ -155,7 +289,14 @@ def route_to_vendor(method: str, *args, **kwargs):
         impl_func = vendor_impl[0] if isinstance(vendor_impl, list) else vendor_impl
 
         try:
-            return impl_func(*args, **kwargs)
+            return _call_vendor_with_cache(
+                config,
+                method,
+                vendor,
+                impl_func,
+                args,
+                kwargs,
+            )
         except AlphaVantageRateLimitError:
             continue  # Only rate limits trigger fallback
 

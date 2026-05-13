@@ -28,6 +28,8 @@ def test_no_env_uses_built_in_defaults(monkeypatch):
     assert dc.DEFAULT_CONFIG["checkpoint_enabled"] is False
     assert dc.DEFAULT_CONFIG["parallel_analysts"] is False
     assert dc.DEFAULT_CONFIG["parallel_analyst_workers"] == 4
+    assert dc.DEFAULT_CONFIG["data_tool_cache_enabled"] is False
+    assert dc.DEFAULT_CONFIG["data_tool_cache_ttl_seconds"] == 21600
 
 
 def test_string_overrides(monkeypatch):
@@ -52,6 +54,7 @@ def test_int_coercion(monkeypatch):
         TRADINGAGENTS_MAX_DEBATE_ROUNDS="3",
         TRADINGAGENTS_MAX_RISK_ROUNDS="2",
         TRADINGAGENTS_PARALLEL_ANALYST_WORKERS="2",
+        TRADINGAGENTS_DATA_TOOL_CACHE_TTL_SECONDS="60",
     )
     assert dc.DEFAULT_CONFIG["max_debate_rounds"] == 3
     assert isinstance(dc.DEFAULT_CONFIG["max_debate_rounds"], int)
@@ -59,6 +62,8 @@ def test_int_coercion(monkeypatch):
     assert isinstance(dc.DEFAULT_CONFIG["max_risk_discuss_rounds"], int)
     assert dc.DEFAULT_CONFIG["parallel_analyst_workers"] == 2
     assert isinstance(dc.DEFAULT_CONFIG["parallel_analyst_workers"], int)
+    assert dc.DEFAULT_CONFIG["data_tool_cache_ttl_seconds"] == 60
+    assert isinstance(dc.DEFAULT_CONFIG["data_tool_cache_ttl_seconds"], int)
 
 
 @pytest.mark.parametrize(
@@ -73,9 +78,11 @@ def test_bool_coercion(monkeypatch, raw, expected):
         monkeypatch,
         TRADINGAGENTS_CHECKPOINT_ENABLED=raw,
         TRADINGAGENTS_PARALLEL_ANALYSTS=raw,
+        TRADINGAGENTS_DATA_TOOL_CACHE_ENABLED=raw,
     )
     assert dc.DEFAULT_CONFIG["checkpoint_enabled"] is expected
     assert dc.DEFAULT_CONFIG["parallel_analysts"] is expected
+    assert dc.DEFAULT_CONFIG["data_tool_cache_enabled"] is expected
 
 
 def test_empty_env_value_is_passthrough(monkeypatch):

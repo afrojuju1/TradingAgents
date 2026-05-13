@@ -19,6 +19,8 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_BENCHMARK_TICKER":     "benchmark_ticker",
     "TRADINGAGENTS_PARALLEL_ANALYSTS":    "parallel_analysts",
     "TRADINGAGENTS_PARALLEL_ANALYST_WORKERS": "parallel_analyst_workers",
+    "TRADINGAGENTS_DATA_TOOL_CACHE_ENABLED": "data_tool_cache_enabled",
+    "TRADINGAGENTS_DATA_TOOL_CACHE_TTL_SECONDS": "data_tool_cache_ttl_seconds",
 }
 
 
@@ -97,6 +99,13 @@ DEFAULT_CONFIG = _apply_env_overrides({
         "oil commodities supply chain energy",
     ],
     # Data vendor configuration
+    # Optional cache for vendor tool results. Keep disabled by default so live
+    # data freshness remains conservative; local Ollama runs can opt in to
+    # avoid repeated network calls across retries and repeated ticker runs.
+    "data_tool_cache_enabled": False,
+    # Positive values expire cached tool results after this many seconds.
+    # Values <= 0 keep cache entries until the files are manually removed.
+    "data_tool_cache_ttl_seconds": 6 * 60 * 60,
     # Category-level configuration (default for all tools in category)
     "data_vendors": {
         "core_stock_apis": "yfinance",       # Options: alpha_vantage, yfinance
