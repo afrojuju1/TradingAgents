@@ -211,3 +211,20 @@ def test_report_quality_does_not_parse_table_label_as_rsi_value(tmp_path):
     codes = _codes(tmp_path)
 
     assert "rsi_mismatch" not in codes
+
+
+def test_report_quality_does_not_parse_to_as_trillion_suffix(tmp_path):
+    _write_report(tmp_path, "# Fundamentals\n# Source: SEC EDGAR via edgartools\n")
+    (tmp_path / "1_analysts" / "market.md").write_text(
+        "Yearly return moved from $122.97 to $220.78.",
+        encoding="utf-8",
+    )
+    (tmp_path / "market_facts.json").write_text(
+        json.dumps({"price": {"first_close": 122.97, "latest_close": 220.78}}),
+        encoding="utf-8",
+    )
+
+    codes = _codes(tmp_path)
+
+    assert "unsupported_market_money" not in codes
+    assert "market_value_mismatch" not in codes

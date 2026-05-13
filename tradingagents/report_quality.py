@@ -31,7 +31,7 @@ WARNING_PATTERNS = (
     ("fallback_text", re.compile(r"\b(?:falling back|using fallback)\b", re.I)),
 )
 
-MONEY_RE = re.compile(r"-?\$-?\d+(?:,\d{3})*(?:\.\d+)?\s*[TBMK]?", re.I)
+MONEY_RE = re.compile(r"-?\$-?\d+(?:,\d{3})*(?:\.\d+)?(?:[TBMK])?(?![A-Za-z])", re.I)
 RSI_RE = re.compile(
     r"\bRSI\b\s*(?:at|of|is|was|:|=|\()\s*([-+]?\d+(?:\.\d+)?)",
     re.I,
