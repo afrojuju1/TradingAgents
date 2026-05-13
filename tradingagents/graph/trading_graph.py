@@ -29,8 +29,7 @@ from tradingagents.dataflows.prefetch import prefetch_data
 
 # Import the new abstract tool methods from agent_utils
 from tradingagents.agents.utils.agent_utils import (
-    get_stock_data,
-    get_indicators,
+    get_market_summary,
     get_fundamentals,
     get_balance_sheet,
     get_cashflow,
@@ -175,10 +174,8 @@ class TradingAgentsGraph:
         return {
             "market": ToolNode(
                 [
-                    # Core stock data tools
-                    get_stock_data,
-                    # Technical indicators
-                    get_indicators,
+                    # Deterministic technical market summary
+                    get_market_summary,
                 ]
             ),
             "social": ToolNode(

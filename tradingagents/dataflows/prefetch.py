@@ -32,6 +32,12 @@ def _date_window(trade_date: str, days: int) -> tuple[str, str]:
     return start.isoformat(), end.isoformat()
 
 
+def _market_stock_window(trade_date: str, days: int) -> tuple[str, str]:
+    start, end = _date_window(trade_date, days)
+    end_exclusive = datetime.strptime(end, "%Y-%m-%d").date() + timedelta(days=1)
+    return start, end_exclusive.isoformat()
+
+
 def build_prefetch_tasks(
     ticker: str,
     trade_date: str,
@@ -42,7 +48,7 @@ def build_prefetch_tasks(
     tasks: list[PrefetchTask] = []
 
     if "market" in selected:
-        start_date, end_date = _date_window(trade_date, 365)
+        start_date, end_date = _market_stock_window(trade_date, 365)
         tasks.append(PrefetchTask("get_stock_data", (ticker, start_date, end_date), {}))
         for indicator in COMMON_PREFETCH_INDICATORS:
             tasks.append(PrefetchTask("get_indicators", (ticker, indicator, trade_date, 30), {}))
@@ -130,4 +136,3 @@ def prefetch_data(
     with ThreadPoolExecutor(max_workers=workers) as executor:
         futures = [executor.submit(_run_task, task) for task in tasks]
         return [future.result() for future in as_completed(futures)]
-
