@@ -58,6 +58,8 @@ class AgentState(MessagesState):
     fundamentals_report: Annotated[str, "Report from the Fundamentals Researcher"]
     market_facts: Annotated[dict, "Deterministic market fact artifact"]
     fundamental_facts: Annotated[dict, "Deterministic fundamentals fact artifact"]
+    valuation_facts: Annotated[dict, "Deterministic valuation fact artifact"]
+    event_facts: Annotated[dict, "Deterministic event calendar fact artifact"]
     news_sources: Annotated[dict, "Deterministic news source artifact"]
     sentiment_facts: Annotated[dict, "Deterministic sentiment fact artifact"]
     claim_checks: Annotated[list, "Report claim/proof check artifact"]

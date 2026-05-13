@@ -302,6 +302,104 @@ def get_fundamentals(
         return f"Error retrieving fundamentals for {ticker}: {str(e)}"
 
 
+def get_valuation(
+    ticker: Annotated[str, "ticker symbol of the company"],
+    curr_date: Annotated[str, "current date (not used for yfinance)"] = None,
+):
+    """Get market valuation inputs from yfinance."""
+    try:
+        ticker_obj = yf.Ticker(ticker.upper())
+        info = yf_retry(lambda: ticker_obj.info)
+
+        if not info:
+            return f"No valuation data found for symbol '{ticker}'"
+
+        fields = [
+            ("Market Cap", info.get("marketCap")),
+            ("Enterprise Value", info.get("enterpriseValue")),
+            ("Trailing PE", info.get("trailingPE")),
+            ("Forward PE", info.get("forwardPE")),
+            ("Price to Book", info.get("priceToBook")),
+            ("Dividend Yield", info.get("dividendYield")),
+            ("Beta", info.get("beta")),
+            ("52 Week High", info.get("fiftyTwoWeekHigh")),
+            ("52 Week Low", info.get("fiftyTwoWeekLow")),
+            ("50 Day Average", info.get("fiftyDayAverage")),
+            ("200 Day Average", info.get("twoHundredDayAverage")),
+        ]
+
+        lines = [f"{label}: {value}" for label, value in fields if value is not None]
+        if not lines:
+            return f"No valuation data found for symbol '{ticker}'"
+
+        header = f"# Valuation data for {ticker.upper()}\n"
+        header += "# Source: yfinance info\n"
+        header += f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+
+        return header + "\n".join(lines)
+
+    except Exception as e:
+        return f"Error retrieving valuation for {ticker}: {str(e)}"
+
+
+def get_event_calendar(
+    ticker: Annotated[str, "ticker symbol of the company"],
+    curr_date: Annotated[str, "current date in YYYY-MM-DD format"] = None,
+):
+    """Get upcoming event calendar fields from yfinance."""
+    try:
+        ticker_obj = yf.Ticker(ticker.upper())
+        calendar = yf_retry(lambda: ticker_obj.calendar)
+        event_items = _calendar_items(calendar)
+
+        if not event_items:
+            return f"No event calendar data found for symbol '{ticker}'"
+
+        header = f"# Event calendar for {ticker.upper()}\n"
+        header += "# Source: yfinance calendar\n"
+        header += f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+        lines = [f"{label}: {_format_calendar_value(value)}" for label, value in event_items]
+        return header + "\n".join(lines)
+
+    except Exception as e:
+        return f"Error retrieving event calendar for {ticker}: {str(e)}"
+
+
+def _calendar_items(calendar) -> list[tuple[str, object]]:
+    if calendar is None:
+        return []
+    if isinstance(calendar, dict):
+        return [(str(key), value) for key, value in calendar.items() if value is not None]
+    if isinstance(calendar, pd.DataFrame):
+        if calendar.empty:
+            return []
+        if "Value" in calendar.columns:
+            return [
+                (str(index), row["Value"])
+                for index, row in calendar.iterrows()
+                if row.get("Value") is not None
+            ]
+        flattened = calendar.to_dict()
+        items: list[tuple[str, object]] = []
+        for column, values in flattened.items():
+            if isinstance(values, dict):
+                for index, value in values.items():
+                    if value is not None:
+                        items.append((f"{index} {column}", value))
+            elif values is not None:
+                items.append((str(column), values))
+        return items
+    return []
+
+
+def _format_calendar_value(value) -> str:
+    if isinstance(value, (list, tuple, set)):
+        return ", ".join(_format_calendar_value(item) for item in value)
+    if hasattr(value, "strftime"):
+        return value.strftime("%Y-%m-%d")
+    return str(value)
+
+
 def get_balance_sheet(
     ticker: Annotated[str, "ticker symbol of the company"],
     freq: Annotated[str, "frequency of data: 'annual' or 'quarterly'"] = "quarterly",

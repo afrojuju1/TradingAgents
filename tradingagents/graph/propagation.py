@@ -54,6 +54,8 @@ class Propagator:
             "news_report": "",
             "market_facts": {},
             "fundamental_facts": {},
+            "valuation_facts": {},
+            "event_facts": {},
             "news_sources": {},
             "sentiment_facts": {},
             "claim_checks": [],

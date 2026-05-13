@@ -294,11 +294,22 @@ def _fundamental_allowed_values(fundamental_facts: dict) -> list[float]:
     return values
 
 
+def _valuation_allowed_values(valuation_facts: dict | None) -> list[float]:
+    values: list[float] = []
+    facts = valuation_facts.get("facts", {}) if isinstance(valuation_facts, dict) else {}
+    for fact in facts.values():
+        value = fact.get("numeric_value") if isinstance(fact, dict) else None
+        if isinstance(value, (int, float)):
+            values.append(float(value))
+    return values
+
+
 def _check_fundamentals_against_facts(
     fundamentals_path: Path,
     text: str,
     root: Path,
     fundamental_facts: dict | None,
+    valuation_facts: dict | None = None,
 ) -> list[QualityIssue]:
     if not fundamental_facts:
         return []
@@ -338,6 +349,7 @@ def _check_fundamentals_against_facts(
             )
 
     allowed = _fundamental_allowed_values(fundamental_facts)
+    allowed.extend(_valuation_allowed_values(valuation_facts))
     for match in MONEY_RE.finditer(text):
         value = _parse_amount(match.group(0))
         if value is None:
@@ -348,7 +360,7 @@ def _check_fundamentals_against_facts(
                     "warning",
                     "fundamental_value_unverified",
                     f"{_display_path(fundamentals_path, root)}:{_line_number(text, match.start())}",
-                    f"fundamentals dollar value {match.group(0)} is not present in fundamental_facts.json",
+                    f"fundamentals dollar value {match.group(0)} is not present in fundamental_facts.json or valuation_facts.json",
                 )
             )
 
@@ -400,6 +412,7 @@ def check_report_quality(
 
     market_facts = _read_json_artifact(report_root, "market_facts.json")
     fundamental_facts = _read_json_artifact(report_root, "fundamental_facts.json")
+    valuation_facts = _read_json_artifact(report_root, "valuation_facts.json")
 
     for path in markdown_files:
         text = _read_text(path)
@@ -451,6 +464,7 @@ def check_report_quality(
                 fundamentals_text,
                 report_root,
                 fundamental_facts,
+                valuation_facts,
             )
         )
     elif root.is_dir():

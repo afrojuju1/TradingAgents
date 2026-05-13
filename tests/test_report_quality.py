@@ -148,3 +148,26 @@ def test_report_quality_flags_fundamental_relationship_contradictions(tmp_path):
 
     assert "asset_liability_contradiction" in codes
     assert "bank_cashflow_misread" in codes
+
+
+def test_report_quality_allows_valuation_fact_values(tmp_path):
+    report_dir = tmp_path
+    analysts_dir = report_dir / "1_analysts"
+    analysts_dir.mkdir()
+    (report_dir / "complete_report.md").write_text("## Report\n", encoding="utf-8")
+    (analysts_dir / "fundamentals.md").write_text(
+        "Market cap is $250.00B based on the valuation fact pack.",
+        encoding="utf-8",
+    )
+    (report_dir / "fundamental_facts.json").write_text(
+        '{"relationships": {}, "accounting_context": {}, "facts": {}}',
+        encoding="utf-8",
+    )
+    (report_dir / "valuation_facts.json").write_text(
+        '{"facts": {"market_cap": {"numeric_value": 250000000000}}}',
+        encoding="utf-8",
+    )
+
+    codes = _codes(report_dir)
+
+    assert "fundamental_value_unverified" not in codes

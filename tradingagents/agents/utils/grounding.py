@@ -10,12 +10,14 @@ def build_grounding_context(state: dict[str, Any]) -> str:
         "",
         _market_context(state.get("market_facts") or {}),
         _fundamental_context(state.get("fundamental_facts") or {}),
+        _valuation_context(state.get("valuation_facts") or {}),
+        _event_context(state.get("event_facts") or {}),
         _news_context(state.get("news_sources") or {}),
         _sentiment_context(state.get("sentiment_facts") or {}),
         "## Grounding Rules",
         "",
         "- Use the deterministic values above exactly when citing numbers.",
-        "- Do not introduce new AUM, market-cap, dividend-yield, price-target, macro, or rally-percentage figures unless a listed source/fact explicitly supplies them.",
+        "- Do not introduce new AUM, market-cap, dividend-yield, P/E, price-target, event-date, macro, or rally-percentage figures unless a listed source/fact explicitly supplies them.",
         "- If a desired figure is absent, say it is not available in the collected data instead of estimating it.",
         "- Preserve source IDs, SEC accessions, dates, and concepts when citing evidence.",
     ]
@@ -110,6 +112,49 @@ def _fundamental_context(payload: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _valuation_context(payload: dict[str, Any]) -> str:
+    if not payload:
+        return "### Valuation Facts\nNo deterministic valuation fact pack is available."
+    facts = payload.get("facts", {})
+    lines = [
+        "### Valuation Facts",
+        f"- Source: {payload.get('source') or 'unknown'}; parser status {payload.get('parser_status') or 'unknown'}.",
+    ]
+    for metric in (
+        "market_cap",
+        "enterprise_value",
+        "trailing_pe",
+        "forward_pe",
+        "price_to_book",
+        "dividend_yield",
+    ):
+        fact = facts.get(metric)
+        if not isinstance(fact, dict):
+            continue
+        lines.append(f"- {fact.get('label') or metric}: {_valuation_value(fact)}.")
+    for warning in payload.get("data_quality_warnings", [])[:4]:
+        lines.append(f"- Valuation guardrail: {warning}")
+    return "\n".join(lines)
+
+
+def _event_context(payload: dict[str, Any]) -> str:
+    if not payload:
+        return "### Event Facts\nNo deterministic event calendar fact pack is available."
+    events = payload.get("events", {})
+    lines = [
+        "### Event Facts",
+        f"- Source: {payload.get('source') or 'unknown'}; parser status {payload.get('parser_status') or 'unknown'}.",
+    ]
+    for metric in ("earnings_date", "ex_dividend_date", "dividend_date"):
+        event = events.get(metric)
+        if not isinstance(event, dict):
+            continue
+        lines.append(f"- {event.get('label') or metric}: {event.get('value')}.")
+    for warning in payload.get("data_quality_warnings", [])[:3]:
+        lines.append(f"- Event guardrail: {warning}")
+    return "\n".join(lines)
+
+
 def _news_context(payload: dict[str, Any]) -> str:
     if not payload:
         return "### News Sources\nNo deterministic news source pack is available."
@@ -182,3 +227,15 @@ def _plain(value: Any) -> str:
         return f"{float(value):,.2f}"
     except (TypeError, ValueError):
         return str(value)
+
+
+def _valuation_value(fact: dict[str, Any]) -> str:
+    value = fact.get("numeric_value")
+    if not isinstance(value, (int, float)):
+        return str(fact.get("value") or "N/A")
+    unit = fact.get("unit")
+    if unit == "usd":
+        return _money(value)
+    if unit == "ratio" and fact.get("metric") == "dividend_yield":
+        return f"{float(value) * 100:.2f}%"
+    return f"{float(value):,.2f}"

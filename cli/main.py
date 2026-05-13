@@ -42,6 +42,8 @@ app = typer.Typer(
 _ARTIFACT_FILES = {
     "market_facts": "market_facts.json",
     "fundamental_facts": "fundamental_facts.json",
+    "valuation_facts": "valuation_facts.json",
+    "event_facts": "event_facts.json",
     "news_sources": "news_sources.json",
     "sentiment_facts": "sentiment_facts.json",
     "data_tool_events": "data_tool_events.json",

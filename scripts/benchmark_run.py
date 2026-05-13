@@ -214,6 +214,7 @@ def main() -> int:
             "fundamental_data_vendor": config.get("data_vendors", {}).get(
                 "fundamental_data"
             ),
+            "event_data_vendor": config.get("data_vendors", {}).get("event_data"),
         },
         "llm_stats": stats.get_stats(),
         "node_timings": timing_handler.node_timings,

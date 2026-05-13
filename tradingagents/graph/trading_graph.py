@@ -32,6 +32,8 @@ from tradingagents.dataflows.interface import get_data_tool_events, reset_data_t
 from tradingagents.agents.utils.agent_utils import (
     get_market_summary,
     get_fundamentals_summary,
+    get_valuation_summary,
+    get_event_calendar_summary,
     get_news,
     get_news_summary,
 )
@@ -191,6 +193,9 @@ class TradingAgentsGraph:
                 [
                     # Deterministic SEC fundamentals summary
                     get_fundamentals_summary,
+                    # Deterministic yfinance valuation and event summaries
+                    get_valuation_summary,
+                    get_event_calendar_summary,
                 ]
             ),
         }
@@ -414,6 +419,8 @@ class TradingAgentsGraph:
             "fundamentals_report": final_state["fundamentals_report"],
             "market_facts": final_state.get("market_facts", {}),
             "fundamental_facts": final_state.get("fundamental_facts", {}),
+            "valuation_facts": final_state.get("valuation_facts", {}),
+            "event_facts": final_state.get("event_facts", {}),
             "news_sources": final_state.get("news_sources", {}),
             "sentiment_facts": final_state.get("sentiment_facts", {}),
             "claim_checks": final_state.get("claim_checks", []),

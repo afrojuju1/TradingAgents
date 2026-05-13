@@ -149,6 +149,7 @@ DEFAULT_CONFIG = _apply_env_overrides(apply_run_profile({
         "technical_indicators": "yfinance",  # Options: alpha_vantage, yfinance
         "fundamental_data": "yfinance",      # Options: alpha_vantage, yfinance
         "news_data": "yfinance",             # Options: alpha_vantage, yfinance
+        "event_data": "yfinance",            # Options: yfinance
     },
     # Tool-level configuration (takes precedence over category-level)
     "tool_vendors": {

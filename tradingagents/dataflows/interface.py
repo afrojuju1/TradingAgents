@@ -11,6 +11,8 @@ from .y_finance import (
     get_YFin_data_online,
     get_stock_stats_indicators_window,
     get_fundamentals as get_yfinance_fundamentals,
+    get_valuation as get_yfinance_valuation,
+    get_event_calendar as get_yfinance_event_calendar,
     get_balance_sheet as get_yfinance_balance_sheet,
     get_cashflow as get_yfinance_cashflow,
     get_income_statement as get_yfinance_income_statement,
@@ -58,10 +60,17 @@ TOOLS_CATEGORIES = {
         "description": "Company fundamentals",
         "tools": [
             "get_fundamentals",
+            "get_valuation",
             "get_balance_sheet",
             "get_cashflow",
             "get_income_statement"
         ]
+    },
+    "event_data": {
+        "description": "Company event calendar",
+        "tools": [
+            "get_event_calendar",
+        ],
     },
     "news_data": {
         "description": "News and insider data",
@@ -126,6 +135,9 @@ VENDOR_METHODS = {
         "alpha_vantage": get_alpha_vantage_fundamentals,
         "yfinance": get_yfinance_fundamentals,
     },
+    "get_valuation": {
+        "yfinance": get_yfinance_valuation,
+    },
     "get_balance_sheet": {
         "edgar": get_edgar_balance_sheet,
         "alpha_vantage": get_alpha_vantage_balance_sheet,
@@ -153,6 +165,10 @@ VENDOR_METHODS = {
     "get_insider_transactions": {
         "alpha_vantage": get_alpha_vantage_insider_transactions,
         "yfinance": get_yfinance_insider_transactions,
+    },
+    # event_data
+    "get_event_calendar": {
+        "yfinance": get_yfinance_event_calendar,
     },
 }
 
